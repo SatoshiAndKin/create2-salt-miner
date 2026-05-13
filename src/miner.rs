@@ -11,6 +11,7 @@ use crate::{AppConfig, Display};
 static KERNEL_SRC: &str = include_str!("./kernels/keccak256.cl");
 
 const CONTROL_CHARACTER: u8 = 0xff;
+const READBACK_INTERVAL_BATCHES: u32 = 4;
 
 /// Given a `config` object with a factory address, a caller address, a keccak-256 hash
 /// of the contract initialization code, search for salts using OpenCL that will enable
@@ -73,6 +74,7 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
 
     let mut previous_display_update = Instant::now();
     let mut previous_display_nonce: u64 = 0;
+    let mut pending_batches = 0_u32;
 
     let mut next_zeros: usize = config.zeros;
 
@@ -135,12 +137,15 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
 
             // increment the cumulative nonce (does not reset after a match)
             cumulative_nonce += 1;
+            pending_batches += 1;
 
-            // read the solutions from the device, blocking until the kernel completes
-            solutions_buffer
-                .read(&mut solutions)
-                .enq()
-                .wrap_err("failed to read OpenCL solutions")?;
+            if pending_batches == READBACK_INTERVAL_BATCHES {
+                solutions_buffer
+                    .read(&mut solutions)
+                    .enq()
+                    .wrap_err("failed to read OpenCL solutions")?;
+                pending_batches = 0;
+            }
 
             // if at least one solution is found, end the loop
             if solutions[0] != 0 {
