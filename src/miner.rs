@@ -76,37 +76,51 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
 
     let mut next_zeros: usize = config.zeros;
 
+    let mut salt = FixedBytes::<4>::random();
+    let salt_buffer = Buffer::builder()
+        .queue(program_queue.queue().clone())
+        .flags(MemFlags::new().read_only())
+        .len(4)
+        .copy_host_slice(&salt[..])
+        .build()
+        .wrap_err("failed to build salt buffer")?;
+
+    let mut nonce: [u32; 1] = rng.random();
+    let mut solutions = vec![0_u64; 1];
+    let solutions_buffer = Buffer::builder()
+        .queue(program_queue.queue().clone())
+        .flags(MemFlags::new().read_write())
+        .len(1)
+        .copy_host_slice(&solutions)
+        .build()
+        .wrap_err("failed to build solutions buffer")?;
+
+    let kernel = program_queue
+        .kernel_builder("hashMessage")
+        .arg_named("message", Some(&salt_buffer))
+        .arg_named("nonce", nonce[0])
+        .arg_named("min_zeros", next_zeros as u32)
+        .arg_named("solutions", &solutions_buffer)
+        .build()
+        .wrap_err("failed to build OpenCL kernel")?;
+
     loop {
-        // construct the 4-byte message to hash, leaving last 8 of salt empty
-        let salt = FixedBytes::<4>::random();
-        let salt_buffer = Buffer::builder()
-            .queue(program_queue.queue().clone())
-            .flags(MemFlags::new().read_only())
-            .len(4)
-            .copy_host_slice(&salt[..])
-            .build()
-            .wrap_err("failed to build salt buffer")?;
+        salt = FixedBytes::<4>::random();
+        salt_buffer
+            .write(&salt[..])
+            .enq()
+            .wrap_err("failed to update salt buffer")?;
 
-        // for more uniformly distributed nonces, we shall initialize it to a random value
-        let mut nonce: [u32; 1] = rng.random();
+        nonce = rng.random();
+        kernel
+            .set_arg("nonce", nonce[0])
+            .wrap_err("failed to set nonce kernel arg")?;
 
-        let mut solutions: Vec<u64> = vec![0; 1];
-        let solutions_buffer = Buffer::builder()
-            .queue(program_queue.queue().clone())
-            .flags(MemFlags::new().write_only())
-            .len(1)
-            .copy_host_slice(&solutions)
-            .build()
-            .wrap_err("failed to build solutions buffer")?;
-
-        let kernel = program_queue
-            .kernel_builder("hashMessage")
-            .arg_named("message", Some(&salt_buffer))
-            .arg_named("nonce", nonce[0])
-            .arg_named("min_zeros", next_zeros as u32)
-            .arg_named("solutions", &solutions_buffer)
-            .build()
-            .wrap_err("failed to build OpenCL kernel")?;
+        solutions[0] = 0;
+        solutions_buffer
+            .write(&solutions)
+            .enq()
+            .wrap_err("failed to reset solutions buffer")?;
 
         // repeatedly enqueue kernel to search for new addresses
         loop {
@@ -185,6 +199,13 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
 
             let zero_bytes = address.iter().filter(|byte| **byte == 0).count();
 
+            if zero_bytes >= next_zeros {
+                next_zeros = zero_bytes + 1;
+                kernel
+                    .set_arg("min_zeros", next_zeros as u32)
+                    .wrap_err("failed to set min_zeros kernel arg")?;
+            }
+
             let output = format!(
                 "0x{}{}{} => {} (Score: {}, Runtime: {})",
                 hex::encode(config.caller),
@@ -194,10 +215,6 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
                 zero_bytes,
                 HumanDuration(start.elapsed()),
             );
-
-            if zero_bytes >= next_zeros {
-                next_zeros = zero_bytes + 1;
-            }
 
             if config.abi {
                 print_abi_encoded_result(&solution_message[21..53], address, zero_bytes);
