@@ -214,7 +214,7 @@ static inline bool hasZeroBytes(uchar const *d, uint const min_zero_bytes) {
 
 __kernel void hashMessage(__constant uchar const *d_message,
                           __constant uint const *d_nonce,
-                          uint const min_zeros, // min zeros to target
+                          uint const min_zeros, // min zero bytes to target
                           __global volatile ulong *restrict solutions) {
 
   ulong spongeBuffer[25];

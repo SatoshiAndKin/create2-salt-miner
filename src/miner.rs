@@ -23,10 +23,10 @@ const CONTROL_CHARACTER: u8 = 0xff;
 ///
 /// When a salt that will result in the creation of a gas-efficient contract
 /// address is found, it will be displayed on the screen along with the resultant address
-/// and the "score" (i.e. how many leading zero bytes) of the resultant address.
+/// and the "score" (i.e. how many zero bytes) of the resultant address.
 ///
 /// This method only searches for results better than what is already found. For example,
-/// if a salt is found that results in an address with 3 leading zero bytes, the next salt
+/// if a salt is found that results in an address with 3 zero bytes, the next salt
 /// will only be displayed if it results in an address with 4 leading zero bytes.
 ///
 /// This method is highly experimental and could certainly use further optimization.

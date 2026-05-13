@@ -96,7 +96,7 @@ impl Display {
 
             self.pb
                 .target
-                .set_message(format!("Current Target: {} leading bytes", current_target,));
+                .set_message(format!("Current Target: {} zero bytes", current_target,));
         }
 
         for found_salt in found_salts {
