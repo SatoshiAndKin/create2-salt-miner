@@ -77,14 +77,6 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
     let mut next_zeros: usize = config.zeros;
 
     let mut salt = FixedBytes::<4>::random();
-    let salt_buffer = Buffer::builder()
-        .queue(program_queue.queue().clone())
-        .flags(MemFlags::new().read_only())
-        .len(4)
-        .copy_host_slice(&salt[..])
-        .build()
-        .wrap_err("failed to build salt buffer")?;
-
     let mut nonce: [u32; 1] = rng.random();
     let mut solutions = vec![0_u64; 1];
     let solutions_buffer = Buffer::builder()
@@ -97,7 +89,7 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
 
     let kernel = program_queue
         .kernel_builder("hashMessage")
-        .arg_named("message", Some(&salt_buffer))
+        .arg_named("message", u32::from_le_bytes(salt.0))
         .arg_named("nonce", nonce[0])
         .arg_named("min_zeros", next_zeros as u32)
         .arg_named("solutions", &solutions_buffer)
@@ -106,10 +98,9 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
 
     loop {
         salt = FixedBytes::<4>::random();
-        salt_buffer
-            .write(&salt[..])
-            .enq()
-            .wrap_err("failed to update salt buffer")?;
+        kernel
+            .set_arg("message", u32::from_le_bytes(salt.0))
+            .wrap_err("failed to set message kernel arg")?;
 
         nonce = rng.random();
         kernel
@@ -252,14 +243,6 @@ pub fn benchmark_miner(config: AppConfig, warmup_batches: u64, batches: u64) -> 
     let queue = Queue::new(&context, device, None).wrap_err("failed to create OpenCL queue")?;
     let program_queue = ProQue::new(context, queue, program, Some(worksize));
 
-    let salt = FixedBytes::<4>::ZERO;
-    let salt_buffer = Buffer::builder()
-        .queue(program_queue.queue().clone())
-        .flags(MemFlags::new().read_only())
-        .len(4)
-        .copy_host_slice(&salt[..])
-        .build()
-        .wrap_err("failed to build salt buffer")?;
     let solutions = vec![0_u64; 1];
     let solutions_buffer = Buffer::builder()
         .queue(program_queue.queue().clone())
@@ -270,7 +253,7 @@ pub fn benchmark_miner(config: AppConfig, warmup_batches: u64, batches: u64) -> 
         .wrap_err("failed to build solutions buffer")?;
     let kernel = program_queue
         .kernel_builder("hashMessage")
-        .arg_named("message", Some(&salt_buffer))
+        .arg_named("message", 0_u32)
         .arg_named("nonce", 0_u32)
         .arg_named("min_zeros", 21_u32)
         .arg_named("solutions", &solutions_buffer)
