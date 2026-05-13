@@ -87,17 +87,8 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
             .build()
             .wrap_err("failed to build salt buffer")?;
 
-        // reset nonce & create a buffer to view it in little-endian
         // for more uniformly distributed nonces, we shall initialize it to a random value
         let mut nonce: [u32; 1] = rng.random();
-
-        let nonce_buffer = Buffer::builder()
-            .queue(program_queue.queue().clone())
-            .flags(MemFlags::new().read_write())
-            .len(1)
-            .copy_host_slice(&nonce)
-            .build()
-            .wrap_err("failed to build nonce buffer")?;
 
         let mut solutions: Vec<u64> = vec![0; 1];
         let solutions_buffer = Buffer::builder()
@@ -111,7 +102,7 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
         let kernel = program_queue
             .kernel_builder("hashMessage")
             .arg_named("message", Some(&salt_buffer))
-            .arg_named("nonce", Some(&nonce_buffer))
+            .arg_named("nonce", nonce[0])
             .arg_named("min_zeros", next_zeros as u32)
             .arg_named("solutions", &solutions_buffer)
             .build()
@@ -157,11 +148,9 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
 
             // if no solution has yet been found, increment the nonce
             nonce[0] += 1;
-
-            nonce_buffer
-                .write(&nonce[..])
-                .enq()
-                .wrap_err("failed to update nonce buffer")?;
+            kernel
+                .set_arg("nonce", nonce[0])
+                .wrap_err("failed to set nonce kernel arg")?;
         }
 
         // iterate over each solution, first converting to a fixed array
@@ -254,14 +243,6 @@ pub fn benchmark_miner(config: AppConfig, warmup_batches: u64, batches: u64) -> 
         .copy_host_slice(&salt[..])
         .build()
         .wrap_err("failed to build salt buffer")?;
-    let nonce = [0_u32; 1];
-    let nonce_buffer = Buffer::builder()
-        .queue(program_queue.queue().clone())
-        .flags(MemFlags::new().read_only())
-        .len(1)
-        .copy_host_slice(&nonce)
-        .build()
-        .wrap_err("failed to build nonce buffer")?;
     let solutions = vec![0_u64; 1];
     let solutions_buffer = Buffer::builder()
         .queue(program_queue.queue().clone())
@@ -273,7 +254,7 @@ pub fn benchmark_miner(config: AppConfig, warmup_batches: u64, batches: u64) -> 
     let kernel = program_queue
         .kernel_builder("hashMessage")
         .arg_named("message", Some(&salt_buffer))
-        .arg_named("nonce", Some(&nonce_buffer))
+        .arg_named("nonce", 0_u32)
         .arg_named("min_zeros", 21_u32)
         .arg_named("solutions", &solutions_buffer)
         .build()

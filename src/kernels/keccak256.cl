@@ -213,7 +213,7 @@ static inline bool hasZeroBytes(uchar const *d, uint const min_zero_bytes) {
 }
 
 __kernel void hashMessage(__constant uchar const *d_message,
-                          __constant uint const *d_nonce,
+                          uint const nonce_hi,
                           uint const min_zeros, // min zero bytes to target
                           __global volatile ulong *restrict solutions) {
 
@@ -275,7 +275,7 @@ __kernel void hashMessage(__constant uchar const *d_message,
 
   // populate the nonce
   nonce.uint32_t[0] = get_global_id(0);
-  nonce.uint32_t[1] = d_nonce[0];
+  nonce.uint32_t[1] = nonce_hi;
 
   // populate the body of the message with the nonce
   sponge[45] = nonce.uint8_t[0];
