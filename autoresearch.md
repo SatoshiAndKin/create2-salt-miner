@@ -27,3 +27,7 @@ Stop after 5 consecutive unsuccessful optimization experiments.
 
 ## What's Been Tried
 - Baseline harness added: `salty bench` runs warmup + timed OpenCL kernel batches with impossible 21-zero target.
+
+- Experiment 1 discarded: branchless zero-byte count in OpenCL kernel measured 550-559M attempts/s vs 565M baseline.
+
+- Experiment 2 kept: use `uchar` for kernel zero-byte counter. Benchmark improved from 565.2M to ~568.9M attempts/s.

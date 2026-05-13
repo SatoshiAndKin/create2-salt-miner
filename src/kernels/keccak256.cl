@@ -202,7 +202,7 @@ static inline void keccakf(ulong *a) {
 }
 
 static inline bool hasZeroBytes(uchar const *d, uint const min_zero_bytes) {
-  uint zero_bytes = 0;
+  uchar zero_bytes = 0;
 #pragma unroll
   for (uint i = 0; i < 20; ++i) {
     if (d[i] == 0)
