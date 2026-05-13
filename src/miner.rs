@@ -1,5 +1,6 @@
 use alloy_primitives::{Address, FixedBytes, Keccak256, hex};
 use eyre::{Result, WrapErr};
+use indicatif::HumanDuration;
 use ocl::{Buffer, Context, Device, MemFlags, Platform, ProQue, Program, Queue};
 use rand::RngExt;
 use std::fmt::Write;
@@ -35,6 +36,7 @@ pub fn start_miner(config: AppConfig, display: Option<Display>) -> Result<()> {
     if !config.abi {
         println!("Preparing OpenCL Miner...",);
     }
+    let start = Instant::now();
 
     let worksize = config.worksize;
     let workfactor = (worksize as u128) / 1_000_000;
@@ -239,12 +241,13 @@ pub fn start_miner(config: AppConfig, display: Option<Display>) -> Result<()> {
             let zero_bytes = address.iter().filter(|byte| **byte == 0).count();
 
             let output = format!(
-                "0x{}{}{} => {} (Score: {})",
+                "0x{}{}{} => {} (Score: {}, Runtime: {})",
                 hex::encode(config.caller),
                 hex::encode(salt),
                 hex::encode(solution),
                 address,
                 zero_bytes,
+                HumanDuration(start.elapsed()),
             );
 
             if zero_bytes >= next_zeros {
