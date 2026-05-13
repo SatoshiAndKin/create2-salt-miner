@@ -1,6 +1,7 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use console::Term;
+use eyre::{Result, WrapErr};
 use indicatif::{HumanDuration, HumanFloatCount, MultiProgress, ProgressBar, ProgressStyle};
 
 pub struct Display {
@@ -20,7 +21,7 @@ struct ProgressManagers {
 }
 
 impl Display {
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self> {
         let mp = MultiProgress::new();
         let pb = ProgressManagers {
             time: mp.add(ProgressBar::new_spinner()),
@@ -28,20 +29,20 @@ impl Display {
             target: mp.add(ProgressBar::new_spinner()),
         };
 
-        Self {
+        Ok(Self {
             start_time: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .unwrap()
+                .wrap_err("system time is before UNIX epoch")?
                 .as_secs(),
             term: Term::stdout(),
             mp,
             pb,
-        }
+        })
     }
 
-    pub fn start(&self) {
+    pub fn start(&self) -> Result<()> {
         let pb_style = ProgressStyle::with_template("{spinner:.blue} {msg}")
-            .unwrap()
+            .wrap_err("failed to build progress style")?
             .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]);
 
         self.pb.time.enable_steady_tick(Duration::from_millis(80));
@@ -56,20 +57,30 @@ impl Display {
         self.pb.target.set_style(pb_style.clone());
         self.pb.target.set_message("Loading...");
 
-        self.term.clear_screen().unwrap();
+        self.term
+            .clear_screen()
+            .wrap_err("failed to clear screen")?;
+        Ok(())
     }
 
-    pub fn update(&self, work_rate: u128, current_target: usize, found_salts: &Vec<String>) {
+    pub fn update(
+        &self,
+        work_rate: u128,
+        current_target: usize,
+        found_salts: &[String],
+    ) -> Result<()> {
         println!("{:?}", self.start_time);
 
         let total_runtime = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .wrap_err("system time is before UNIX epoch")?
             .as_secs()
             - self.start_time;
 
         if total_runtime != 0 {
-            self.term.clear_last_lines(3 + found_salts.len()).unwrap();
+            self.term
+                .clear_last_lines(3 + found_salts.len())
+                .wrap_err("failed to clear progress lines")?;
         }
 
         if total_runtime != 0 {
@@ -89,13 +100,11 @@ impl Display {
         }
 
         for found_salt in found_salts {
-            self.mp.println(found_salt).unwrap();
+            self.mp
+                .println(found_salt)
+                .wrap_err("failed to print found salt")?;
         }
-    }
-}
 
-impl Default for Display {
-    fn default() -> Self {
-        Self::new()
+        Ok(())
     }
 }

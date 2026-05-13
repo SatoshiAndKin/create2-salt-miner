@@ -1,11 +1,11 @@
 use alloy_primitives::hex;
 use clap::{Parser, Subcommand};
+use eyre::{OptionExt, Result, WrapErr, eyre};
 use figment::{
     Figment,
     providers::{Format, Serialized, Toml},
 };
 use serde::{Deserialize, Serialize};
-use std::process;
 
 mod display;
 mod gpgpu;
@@ -43,13 +43,13 @@ struct MineArgs {
 
     /// Exit after the first matching salt
     #[arg(long)]
-    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    once: Option<bool>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    once: bool,
 
     /// Print the first matching salt as abi.encode(bytes32,address,uint256)
     #[arg(long)]
-    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    abi: Option<bool>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    abi: bool,
 }
 
 #[derive(Subcommand, Debug, Serialize, Deserialize)]
@@ -78,7 +78,7 @@ pub struct AppConfig {
     pub abi: bool,
 }
 
-fn main() {
+fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match &cli.mode {
@@ -87,46 +87,56 @@ fn main() {
                 .merge(Toml::file("salty.toml"))
                 .merge(Serialized::defaults(args))
                 .extract()
-                .unwrap();
+                .wrap_err("failed to load configuration")?;
 
-            if !unwrapped.abi.unwrap_or(false) {
+            if !unwrapped.abi {
                 println!("{:#?}", unwrapped);
             }
 
-            if unwrapped.caller.is_none() || unwrapped.codehash.is_none() {
-                eprintln!("Insufficient arguments provided. Please see --help for usage.");
-                process::exit(1);
-            }
-
             let app_config = AppConfig {
-                factory: hex::decode(
-                    unwrapped
+                factory: decode_fixed(
+                    &unwrapped
                         .factory
-                        .unwrap_or("0x0000000000FFe8B47B3e2130213B802212439497".to_string()),
-                )
-                .unwrap()
-                .try_into()
-                .unwrap(),
-                caller: hex::decode(unwrapped.caller.unwrap_or("0x00".to_string()))
-                    .unwrap()
-                    .try_into()
-                    .unwrap(),
-                codehash: hex::decode(unwrapped.codehash.unwrap_or("0x00".to_string()))
-                    .unwrap()
-                    .try_into()
-                    .unwrap(),
+                        .unwrap_or_else(|| "0x0000000000FFe8B47B3e2130213B802212439497".to_owned()),
+                    "factory",
+                )?,
+                caller: decode_fixed(
+                    &unwrapped
+                        .caller
+                        .ok_or_eyre("missing required caller address")?,
+                    "caller",
+                )?,
+                codehash: decode_fixed(
+                    &unwrapped
+                        .codehash
+                        .ok_or_eyre("missing required initcode hash")?,
+                    "codehash",
+                )?,
                 worksize: unwrapped.worksize.unwrap_or(0x4400000_u32),
                 zeros: unwrapped.zeros.unwrap_or(1_usize),
-                once: unwrapped.once.unwrap_or(false),
-                abi: unwrapped.abi.unwrap_or(false),
+                once: unwrapped.once,
+                abi: unwrapped.abi,
             };
 
-            let display = Display::new();
+            let display = if app_config.abi {
+                None
+            } else {
+                Some(Display::new()?)
+            };
 
-            start_miner(app_config, display);
+            start_miner(app_config, display)?;
         }
         Commands::List {} => {
-            gpgpu::list_devices();
+            gpgpu::list_devices()?;
         }
     }
+
+    Ok(())
+}
+
+fn decode_fixed<const N: usize>(value: &str, field: &str) -> Result<[u8; N]> {
+    let bytes = hex::decode(value).wrap_err_with(|| format!("invalid {field} hex"))?;
+    bytes
+        .try_into()
+        .map_err(|bytes: Vec<u8>| eyre!("{field} must be {N} bytes, got {}", bytes.len()))
 }

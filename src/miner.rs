@@ -1,4 +1,5 @@
 use alloy_primitives::{Address, FixedBytes, Keccak256, hex};
+use eyre::{Result, WrapErr};
 use ocl::{Buffer, Context, Device, MemFlags, Platform, ProQue, Program, Queue};
 use rand::RngExt;
 use std::fmt::Write;
@@ -30,7 +31,7 @@ const CONTROL_CHARACTER: u8 = 0xff;
 ///
 /// This method is highly experimental and could certainly use further optimization.
 /// Contributions are welcome as always!
-pub fn start_miner(config: AppConfig, display: Display) {
+pub fn start_miner(config: AppConfig, display: Option<Display>) -> Result<()> {
     if !config.abi {
         println!("Preparing OpenCL Miner...",);
     }
@@ -40,25 +41,28 @@ pub fn start_miner(config: AppConfig, display: Display) {
 
     let mut found_list: Vec<String> = vec![];
 
-    if !config.abi {
-        display.start();
+    if let Some(display) = &display {
+        display.start()?;
     }
 
-    let platform = Platform::new(ocl::core::default_platform().unwrap());
-    let device = Device::by_idx_wrap(platform, 0_usize).unwrap();
+    let platform = Platform::new(
+        ocl::core::default_platform().wrap_err("failed to get default OpenCL platform")?,
+    );
+    let device =
+        Device::by_idx_wrap(platform, 0_usize).wrap_err("failed to get default OpenCL device")?;
     let context = Context::builder()
         .platform(platform)
         .devices(device)
         .build()
-        .unwrap();
+        .wrap_err("failed to build OpenCL context")?;
 
     let program = Program::builder()
         .devices(device)
         .src(mk_kernel_src(&config))
         .build(&context)
-        .unwrap();
+        .wrap_err("failed to build OpenCL program")?;
 
-    let queue = Queue::new(&context, device, None).unwrap();
+    let queue = Queue::new(&context, device, None).wrap_err("failed to create OpenCL queue")?;
     let program_queue = ProQue::new(context, queue, program, Some(worksize));
 
     let mut rng = rand::rng();
@@ -83,7 +87,7 @@ pub fn start_miner(config: AppConfig, display: Display) {
             .len(4)
             .copy_host_slice(&salt[..])
             .build()
-            .unwrap();
+            .wrap_err("failed to build salt buffer")?;
 
         // reset nonce & create a buffer to view it in little-endian
         // for more uniformly distributed nonces, we shall initialize it to a random value
@@ -95,7 +99,7 @@ pub fn start_miner(config: AppConfig, display: Display) {
             .len(1)
             .copy_host_slice(&nonce)
             .build()
-            .unwrap();
+            .wrap_err("failed to build nonce buffer")?;
 
         let mut solutions: Vec<u64> = vec![0; 1];
         let solutions_buffer = Buffer::builder()
@@ -104,7 +108,7 @@ pub fn start_miner(config: AppConfig, display: Display) {
             .len(1)
             .copy_host_slice(&solutions)
             .build()
-            .unwrap();
+            .wrap_err("failed to build solutions buffer")?;
 
         // repeatedly enqueue kernel to search for new addresses
         loop {
@@ -116,21 +120,31 @@ pub fn start_miner(config: AppConfig, display: Display) {
                 .arg_named("min_zeros", None::<&Buffer<u32>>)
                 .arg_named("solutions", None::<&Buffer<u64>>)
                 .build()
-                .unwrap();
+                .wrap_err("failed to build OpenCL kernel")?;
 
             // set each buffer
-            kernel.set_arg("message", Some(&salt_buffer)).unwrap();
-            kernel.set_arg("nonce", Some(&nonce_buffer)).unwrap();
-            kernel.set_arg("min_zeros", next_zeros as u32).unwrap();
-            kernel.set_arg("solutions", &solutions_buffer).unwrap();
+            kernel
+                .set_arg("message", Some(&salt_buffer))
+                .wrap_err("failed to set message kernel arg")?;
+            kernel
+                .set_arg("nonce", Some(&nonce_buffer))
+                .wrap_err("failed to set nonce kernel arg")?;
+            kernel
+                .set_arg("min_zeros", next_zeros as u32)
+                .wrap_err("failed to set min_zeros kernel arg")?;
+            kernel
+                .set_arg("solutions", &solutions_buffer)
+                .wrap_err("failed to set solutions kernel arg")?;
 
             // enqueue the kernel
             unsafe {
-                kernel.enq().unwrap();
+                kernel.enq().wrap_err("failed to enqueue OpenCL kernel")?;
             };
 
             // calculate the current time
-            let mut now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+            let mut now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .wrap_err("system time is before UNIX epoch")?;
             let current_time = now.as_secs();
 
             // we don't want to print too fast
@@ -143,7 +157,9 @@ pub fn start_miner(config: AppConfig, display: Display) {
                 // determine the number of attempts being made per second
                 let work_rate: u128 = workfactor * cumulative_nonce as u128;
 
-                display.update(work_rate, next_zeros, &found_list);
+                if let Some(display) = &display {
+                    display.update(work_rate, next_zeros, &found_list)?;
+                }
             }
 
             // increment the cumulative nonce (does not reset after a match)
@@ -160,10 +176,15 @@ pub fn start_miner(config: AppConfig, display: Display) {
             }
 
             // read the solutions from the device
-            solutions_buffer.read(&mut solutions).enq().unwrap();
+            solutions_buffer
+                .read(&mut solutions)
+                .enq()
+                .wrap_err("failed to read OpenCL solutions")?;
 
             // record the end time of the work and compute how long the work took
-            now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+            now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .wrap_err("system time is before UNIX epoch")?;
             work_duration_millis = (now.as_secs() * 1000 + now.subsec_nanos() as u64 / 1000000)
                 - work_start_time_millis;
 
@@ -182,7 +203,7 @@ pub fn start_miner(config: AppConfig, display: Display) {
                 .len(1)
                 .copy_host_slice(&nonce)
                 .build()
-                .unwrap();
+                .wrap_err("failed to rebuild nonce buffer")?;
         }
 
         // iterate over each solution, first converting to a fixed array
@@ -212,7 +233,8 @@ pub fn start_miner(config: AppConfig, display: Display) {
             hash.finalize_into(&mut res);
 
             // get the address that results from the hash
-            let address = <&Address>::try_from(&res[12..]).unwrap();
+            let address =
+                <&Address>::try_from(&res[12..]).wrap_err("failed to derive address from hash")?;
 
             let zero_bytes = address.iter().filter(|byte| **byte == 0).count();
 
@@ -230,16 +252,16 @@ pub fn start_miner(config: AppConfig, display: Display) {
             }
 
             if config.abi {
-                print_abi_encoded_result(&solution_message[21..53], &address, zero_bytes);
+                print_abi_encoded_result(&solution_message[21..53], address, zero_bytes);
                 if config.once {
-                    return;
+                    return Ok(());
                 }
             }
 
             found_list.push(output);
 
             if config.once {
-                return;
+                return Ok(());
             }
         }
     }
@@ -264,7 +286,7 @@ fn mk_kernel_src(config: &AppConfig) -> String {
     let hash = hash.enumerate().map(|(i, x)| (i + 52, x));
 
     for (i, x) in factory.chain(caller).enumerate().chain(hash) {
-        writeln!(src, "#define S_{} {}u", i + 1, x).unwrap();
+        let _ = writeln!(src, "#define S_{} {}u", i + 1, x);
     }
 
     src.push_str(KERNEL_SRC);

@@ -3,7 +3,9 @@ use ocl::{
     enums::{DeviceInfo, PlatformInfo},
 };
 
-pub fn list_devices() {
+use eyre::{OptionExt, Result};
+
+pub fn list_devices() -> Result<()> {
     // Information buffer
     let mut info = vec![];
 
@@ -54,9 +56,10 @@ pub fn list_devices() {
         Platform::list()
             .into_iter()
             .position(|platform| *platform == *Platform::default())
-            .expect("Default platform missing?!")
+            .ok_or_eyre("default OpenCL platform is missing")?
     ));
 
     // Print collected information
     println!("{}", info.join("\n"));
+    Ok(())
 }
