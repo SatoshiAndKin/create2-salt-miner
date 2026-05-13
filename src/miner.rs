@@ -11,7 +11,7 @@ use crate::{AppConfig, Display};
 static KERNEL_SRC: &str = include_str!("./kernels/keccak256.cl");
 
 const CONTROL_CHARACTER: u8 = 0xff;
-const READBACK_INTERVAL_BATCHES: u32 = 4;
+const READBACK_INTERVAL_BATCHES: u32 = 8;
 
 /// Given a `config` object with a factory address, a caller address, a keccak-256 hash
 /// of the contract initialization code, search for salts using OpenCL that will enable
