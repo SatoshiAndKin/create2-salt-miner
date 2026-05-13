@@ -43,12 +43,12 @@ struct MineArgs {
 
     /// Exit after the first matching salt
     #[arg(long)]
-    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     once: bool,
 
     /// Print the first matching salt as abi.encode(bytes32,address,uint256)
     #[arg(long)]
-    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     abi: bool,
 }
 
