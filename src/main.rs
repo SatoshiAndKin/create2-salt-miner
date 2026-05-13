@@ -52,7 +52,7 @@ enum Commands {
 
 #[derive(Parser, Debug, Serialize, Deserialize)]
 #[command(name = "Salty", author, version, about, long_about = None)]
-struct CLI {
+struct Cli {
     #[command(subcommand)]
     mode: Commands,
 }
@@ -67,7 +67,7 @@ pub struct AppConfig {
 }
 
 fn main() {
-    let cli = CLI::parse();
+    let cli = Cli::parse();
 
     match &cli.mode {
         Commands::Mine(args) => {
@@ -101,8 +101,8 @@ fn main() {
                     .unwrap()
                     .try_into()
                     .unwrap(),
-                worksize: unwrapped.worksize.unwrap_or(0x4400000 as u32),
-                zeros: unwrapped.zeros.unwrap_or(1 as usize),
+                worksize: unwrapped.worksize.unwrap_or(0x4400000_u32),
+                zeros: unwrapped.zeros.unwrap_or(1_usize),
             };
 
             let display = Display::new();

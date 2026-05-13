@@ -1,6 +1,6 @@
 use alloy_primitives::{hex, Address, FixedBytes, Keccak256};
 use ocl::{Buffer, Context, Device, MemFlags, Platform, ProQue, Program, Queue};
-use rand::Rng;
+use rand::RngExt;
 use std::fmt::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -33,7 +33,7 @@ const CONTROL_CHARACTER: u8 = 0xff;
 pub fn start_miner(config: AppConfig, display: Display) {
     println!("Preparing OpenCL Miner...",);
 
-    let worksize = config.worksize.clone();
+    let worksize = config.worksize;
     let workfactor = (worksize as u128) / 1_000_000;
 
     let mut found_list: Vec<String> = vec![];
@@ -41,7 +41,7 @@ pub fn start_miner(config: AppConfig, display: Display) {
     display.start();
 
     let platform = Platform::new(ocl::core::default_platform().unwrap());
-    let device = Device::by_idx_wrap(platform, 0 as usize).unwrap();
+    let device = Device::by_idx_wrap(platform, 0_usize).unwrap();
     let context = Context::builder()
         .platform(platform)
         .devices(device)
@@ -57,7 +57,7 @@ pub fn start_miner(config: AppConfig, display: Display) {
     let queue = Queue::new(&context, device, None).unwrap();
     let program_queue = ProQue::new(context, queue, program, Some(worksize));
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     // set up variables for tracking performance
     let mut cumulative_nonce: u64 = 0;
@@ -68,7 +68,7 @@ pub fn start_miner(config: AppConfig, display: Display) {
     // the last work duration in milliseconds
     let mut work_duration_millis: u64 = 0;
 
-    let mut next_zeros: usize = config.zeros.clone();
+    let mut next_zeros: usize = config.zeros;
 
     loop {
         // construct the 4-byte message to hash, leaving last 8 of salt empty
@@ -83,7 +83,7 @@ pub fn start_miner(config: AppConfig, display: Display) {
 
         // reset nonce & create a buffer to view it in little-endian
         // for more uniformly distributed nonces, we shall initialize it to a random value
-        let mut nonce: [u32; 1] = rng.gen();
+        let mut nonce: [u32; 1] = rng.random();
 
         let mut nonce_buffer = Buffer::builder()
             .queue(program_queue.queue().clone())
@@ -201,7 +201,7 @@ pub fn start_miner(config: AppConfig, display: Display) {
             let mut hash = Keccak256::new();
 
             // update with header
-            hash.update(&solution_message);
+            hash.update(solution_message);
 
             // hash the payload and get the result
             let mut res: [u8; 32] = [0; 32];
@@ -252,5 +252,5 @@ fn mk_kernel_src(config: &AppConfig) -> String {
 
     src.push_str(KERNEL_SRC);
 
-    return src;
+    src
 }

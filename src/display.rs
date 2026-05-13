@@ -89,7 +89,13 @@ impl Display {
         }
 
         for found_salt in found_salts {
-            self.mp.println(format!("{}", found_salt)).unwrap();
+            self.mp.println(found_salt).unwrap();
         }
+    }
+}
+
+impl Default for Display {
+    fn default() -> Self {
+        Self::new()
     }
 }
