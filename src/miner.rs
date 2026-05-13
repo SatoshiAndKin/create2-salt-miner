@@ -91,9 +91,9 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
         // for more uniformly distributed nonces, we shall initialize it to a random value
         let mut nonce: [u32; 1] = rng.random();
 
-        let mut nonce_buffer = Buffer::builder()
+        let nonce_buffer = Buffer::builder()
             .queue(program_queue.queue().clone())
-            .flags(MemFlags::new().read_only())
+            .flags(MemFlags::new().read_write())
             .len(1)
             .copy_host_slice(&nonce)
             .build()
@@ -108,32 +108,17 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
             .build()
             .wrap_err("failed to build solutions buffer")?;
 
+        let kernel = program_queue
+            .kernel_builder("hashMessage")
+            .arg_named("message", Some(&salt_buffer))
+            .arg_named("nonce", Some(&nonce_buffer))
+            .arg_named("min_zeros", next_zeros as u32)
+            .arg_named("solutions", &solutions_buffer)
+            .build()
+            .wrap_err("failed to build OpenCL kernel")?;
+
         // repeatedly enqueue kernel to search for new addresses
         loop {
-            // build the kernel and define the type of each buffer
-            let kernel = program_queue
-                .kernel_builder("hashMessage")
-                .arg_named("message", None::<&Buffer<u8>>)
-                .arg_named("nonce", None::<&Buffer<u32>>)
-                .arg_named("min_zeros", None::<&Buffer<u32>>)
-                .arg_named("solutions", None::<&Buffer<u64>>)
-                .build()
-                .wrap_err("failed to build OpenCL kernel")?;
-
-            // set each buffer
-            kernel
-                .set_arg("message", Some(&salt_buffer))
-                .wrap_err("failed to set message kernel arg")?;
-            kernel
-                .set_arg("nonce", Some(&nonce_buffer))
-                .wrap_err("failed to set nonce kernel arg")?;
-            kernel
-                .set_arg("min_zeros", next_zeros as u32)
-                .wrap_err("failed to set min_zeros kernel arg")?;
-            kernel
-                .set_arg("solutions", &solutions_buffer)
-                .wrap_err("failed to set solutions kernel arg")?;
-
             // enqueue the kernel
             unsafe {
                 kernel.enq().wrap_err("failed to enqueue OpenCL kernel")?;
@@ -173,14 +158,10 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
             // if no solution has yet been found, increment the nonce
             nonce[0] += 1;
 
-            // update the nonce buffer with the incremented nonce value
-            nonce_buffer = Buffer::builder()
-                .queue(program_queue.queue().clone())
-                .flags(MemFlags::new().read_write())
-                .len(1)
-                .copy_host_slice(&nonce)
-                .build()
-                .wrap_err("failed to rebuild nonce buffer")?;
+            nonce_buffer
+                .write(&nonce[..])
+                .enq()
+                .wrap_err("failed to update nonce buffer")?;
         }
 
         // iterate over each solution, first converting to a fixed array
