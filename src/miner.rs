@@ -3,7 +3,7 @@ use eyre::{Result, WrapErr};
 use ocl::{Buffer, Context, Device, MemFlags, Platform, ProQue, Program, Queue};
 use rand::RngExt;
 use std::fmt::Write;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use crate::{AppConfig, Display};
 
@@ -265,6 +265,86 @@ pub fn start_miner(config: AppConfig, display: Option<Display>) -> Result<()> {
             }
         }
     }
+}
+
+pub fn benchmark_miner(config: AppConfig, warmup_batches: u64, batches: u64) -> Result<u128> {
+    let worksize = config.worksize;
+    let platform = Platform::new(
+        ocl::core::default_platform().wrap_err("failed to get default OpenCL platform")?,
+    );
+    let device =
+        Device::by_idx_wrap(platform, 0_usize).wrap_err("failed to get default OpenCL device")?;
+    let context = Context::builder()
+        .platform(platform)
+        .devices(device)
+        .build()
+        .wrap_err("failed to build OpenCL context")?;
+    let program = Program::builder()
+        .devices(device)
+        .src(mk_kernel_src(&config))
+        .build(&context)
+        .wrap_err("failed to build OpenCL program")?;
+    let queue = Queue::new(&context, device, None).wrap_err("failed to create OpenCL queue")?;
+    let program_queue = ProQue::new(context, queue, program, Some(worksize));
+
+    let salt = FixedBytes::<4>::ZERO;
+    let salt_buffer = Buffer::builder()
+        .queue(program_queue.queue().clone())
+        .flags(MemFlags::new().read_only())
+        .len(4)
+        .copy_host_slice(&salt[..])
+        .build()
+        .wrap_err("failed to build salt buffer")?;
+    let nonce = [0_u32; 1];
+    let nonce_buffer = Buffer::builder()
+        .queue(program_queue.queue().clone())
+        .flags(MemFlags::new().read_only())
+        .len(1)
+        .copy_host_slice(&nonce)
+        .build()
+        .wrap_err("failed to build nonce buffer")?;
+    let solutions = vec![0_u64; 1];
+    let solutions_buffer = Buffer::builder()
+        .queue(program_queue.queue().clone())
+        .flags(MemFlags::new().write_only())
+        .len(1)
+        .copy_host_slice(&solutions)
+        .build()
+        .wrap_err("failed to build solutions buffer")?;
+    let kernel = program_queue
+        .kernel_builder("hashMessage")
+        .arg_named("message", Some(&salt_buffer))
+        .arg_named("nonce", Some(&nonce_buffer))
+        .arg_named("min_zeros", 21_u32)
+        .arg_named("solutions", &solutions_buffer)
+        .build()
+        .wrap_err("failed to build OpenCL kernel")?;
+
+    for _ in 0..warmup_batches {
+        unsafe {
+            kernel.enq().wrap_err("failed to enqueue warmup kernel")?;
+        }
+    }
+    program_queue
+        .queue()
+        .finish()
+        .wrap_err("failed to finish warmup")?;
+
+    let start = Instant::now();
+    for _ in 0..batches {
+        unsafe {
+            kernel
+                .enq()
+                .wrap_err("failed to enqueue benchmark kernel")?;
+        }
+    }
+    program_queue
+        .queue()
+        .finish()
+        .wrap_err("failed to finish benchmark")?;
+    let elapsed_ns = start.elapsed().as_nanos();
+    let attempts = u128::from(worksize) * u128::from(batches);
+    Ok(attempts * 1_000_000_000 / elapsed_ns)
 }
 
 fn print_abi_encoded_result(salt: &[u8], address: &Address, score: usize) {
