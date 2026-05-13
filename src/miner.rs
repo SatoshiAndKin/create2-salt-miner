@@ -119,10 +119,6 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
             unsafe {
                 kernel.enq().wrap_err("failed to enqueue OpenCL kernel")?;
             };
-            program_queue
-                .queue()
-                .flush()
-                .wrap_err("failed to flush OpenCL queue")?;
 
             if !config.abi && previous_display_update.elapsed().as_secs() >= 1 {
                 let display_elapsed = previous_display_update.elapsed().as_secs_f64();
