@@ -39,7 +39,6 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
     let start = Instant::now();
 
     let worksize = config.worksize;
-    let workfactor = (worksize as u128) / 1_000_000;
 
     let mut found_list: Vec<String> = vec![];
 
@@ -73,6 +72,7 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
     let mut cumulative_nonce: u64 = 0;
 
     let mut previous_display_update = Instant::now();
+    let mut previous_display_nonce: u64 = 0;
 
     let mut next_zeros: usize = config.zeros;
 
@@ -144,11 +144,15 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
                 .wrap_err("failed to flush OpenCL queue")?;
 
             if !config.abi && previous_display_update.elapsed().as_secs() >= 1 {
+                let display_elapsed = previous_display_update.elapsed().as_secs_f64();
+                let completed_batches = cumulative_nonce - previous_display_nonce;
                 previous_display_update = Instant::now();
-                let work_rate: u128 = workfactor * cumulative_nonce as u128;
+                previous_display_nonce = cumulative_nonce;
+                let attempts_per_sec =
+                    f64::from(worksize) * completed_batches as f64 / display_elapsed;
 
                 if let Some(display) = &mut display {
-                    display.update(work_rate, next_zeros, &found_list)?;
+                    display.update(attempts_per_sec, next_zeros, &found_list)?;
                 }
             }
 

@@ -64,7 +64,7 @@ impl Display {
 
     pub fn update(
         &mut self,
-        work_rate: u128,
+        attempts_per_sec: f64,
         current_target: usize,
         found_salts: &[String],
     ) -> Result<()> {
@@ -84,7 +84,7 @@ impl Display {
 
             self.pb.speed.set_message(format!(
                 "Speed: {:.2} million attempts per second",
-                HumanFloatCount(work_rate as f64 / total_runtime as f64),
+                HumanFloatCount(attempts_per_sec / 1_000_000.0),
             ));
 
             self.pb
