@@ -142,6 +142,10 @@ pub fn start_miner(config: AppConfig, display: Option<Display>) -> Result<()> {
             unsafe {
                 kernel.enq().wrap_err("failed to enqueue OpenCL kernel")?;
             };
+            program_queue
+                .queue()
+                .flush()
+                .wrap_err("failed to flush OpenCL queue")?;
 
             // calculate the current time
             let mut now = SystemTime::now()
