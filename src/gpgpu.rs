@@ -1,6 +1,6 @@
 use ocl::{
-    enums::{DeviceInfo, PlatformInfo},
     Device, Platform,
+    enums::{DeviceInfo, PlatformInfo},
 };
 
 pub fn list_devices() {

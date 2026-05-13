@@ -1,8 +1,8 @@
 use alloy_primitives::hex;
 use clap::{Parser, Subcommand};
 use figment::{
-    providers::{Format, Serialized, Toml},
     Figment,
+    providers::{Format, Serialized, Toml},
 };
 use serde::{Deserialize, Serialize};
 use std::process;

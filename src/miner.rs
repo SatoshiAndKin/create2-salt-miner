@@ -1,4 +1,4 @@
-use alloy_primitives::{hex, Address, FixedBytes, Keccak256};
+use alloy_primitives::{Address, FixedBytes, Keccak256, hex};
 use ocl::{Buffer, Context, Device, MemFlags, Platform, ProQue, Program, Queue};
 use rand::RngExt;
 use std::fmt::Write;
