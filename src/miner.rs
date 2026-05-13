@@ -4,7 +4,7 @@ use indicatif::HumanDuration;
 use ocl::{Buffer, Context, Device, MemFlags, Platform, ProQue, Program, Queue};
 use rand::RngExt;
 use std::fmt::Write;
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::Instant;
 
 use crate::{AppConfig, Display};
 
@@ -32,7 +32,7 @@ const CONTROL_CHARACTER: u8 = 0xff;
 ///
 /// This method is highly experimental and could certainly use further optimization.
 /// Contributions are welcome as always!
-pub fn start_miner(config: AppConfig, display: Option<Display>) -> Result<()> {
+pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()> {
     if !config.abi {
         println!("Preparing OpenCL Miner...",);
     }
@@ -72,11 +72,7 @@ pub fn start_miner(config: AppConfig, display: Option<Display>) -> Result<()> {
     // set up variables for tracking performance
     let mut cumulative_nonce: u64 = 0;
 
-    // the previous timestamp of printing to the terminal
-    let mut previous_time: u64 = 0;
-
-    // the last work duration in milliseconds
-    let mut work_duration_millis: u64 = 0;
+    let mut previous_display_update = Instant::now();
 
     let mut next_zeros: usize = config.zeros;
 
@@ -147,23 +143,11 @@ pub fn start_miner(config: AppConfig, display: Option<Display>) -> Result<()> {
                 .flush()
                 .wrap_err("failed to flush OpenCL queue")?;
 
-            // calculate the current time
-            let mut now = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .wrap_err("system time is before UNIX epoch")?;
-            let current_time = now.as_secs();
-
-            // we don't want to print too fast
-            let print_output = current_time - previous_time >= 1;
-
-            // clear the terminal screen
-            if print_output && !config.abi {
-                previous_time = current_time;
-
-                // determine the number of attempts being made per second
+            if !config.abi && previous_display_update.elapsed().as_secs() >= 1 {
+                previous_display_update = Instant::now();
                 let work_rate: u128 = workfactor * cumulative_nonce as u128;
 
-                if let Some(display) = &display {
+                if let Some(display) = &mut display {
                     display.update(work_rate, next_zeros, &found_list)?;
                 }
             }
@@ -171,28 +155,11 @@ pub fn start_miner(config: AppConfig, display: Option<Display>) -> Result<()> {
             // increment the cumulative nonce (does not reset after a match)
             cumulative_nonce += 1;
 
-            // record the start time of the work
-            let work_start_time_millis = now.as_secs() * 1000 + now.subsec_nanos() as u64 / 1000000;
-
-            // sleep for 99% of the previous work duration to conserve CPU
-            if work_duration_millis != 0 {
-                std::thread::sleep(std::time::Duration::from_millis(
-                    work_duration_millis * 990 / 1000,
-                ));
-            }
-
-            // read the solutions from the device
+            // read the solutions from the device, blocking until the kernel completes
             solutions_buffer
                 .read(&mut solutions)
                 .enq()
                 .wrap_err("failed to read OpenCL solutions")?;
-
-            // record the end time of the work and compute how long the work took
-            now = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .wrap_err("system time is before UNIX epoch")?;
-            work_duration_millis = (now.as_secs() * 1000 + now.subsec_nanos() as u64 / 1000000)
-                - work_start_time_millis;
 
             // if at least one solution is found, end the loop
             if solutions[0] != 0 {

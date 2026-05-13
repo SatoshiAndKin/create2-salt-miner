@@ -1,4 +1,4 @@
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 use console::Term;
 use eyre::{Result, WrapErr};
@@ -6,8 +6,9 @@ use indicatif::{HumanDuration, HumanFloatCount, MultiProgress, ProgressBar, Prog
 
 pub struct Display {
     // Extras
-    start_time: u64,
+    start_time: Instant,
     term: Term,
+    printed_salts: usize,
 
     // Progress Bars
     mp: MultiProgress,
@@ -30,11 +31,9 @@ impl Display {
         };
 
         Ok(Self {
-            start_time: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .wrap_err("system time is before UNIX epoch")?
-                .as_secs(),
+            start_time: Instant::now(),
             term: Term::stdout(),
+            printed_salts: 0,
             mp,
             pb,
         })
@@ -64,22 +63,16 @@ impl Display {
     }
 
     pub fn update(
-        &self,
+        &mut self,
         work_rate: u128,
         current_target: usize,
         found_salts: &[String],
     ) -> Result<()> {
-        println!("{:?}", self.start_time);
-
-        let total_runtime = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .wrap_err("system time is before UNIX epoch")?
-            .as_secs()
-            - self.start_time;
+        let total_runtime = self.start_time.elapsed().as_secs();
 
         if total_runtime != 0 {
             self.term
-                .clear_last_lines(3 + found_salts.len())
+                .clear_last_lines(3)
                 .wrap_err("failed to clear progress lines")?;
         }
 
@@ -99,11 +92,12 @@ impl Display {
                 .set_message(format!("Current Target: {} zero bytes", current_target,));
         }
 
-        for found_salt in found_salts {
+        for found_salt in found_salts.iter().skip(self.printed_salts) {
             self.mp
                 .println(found_salt)
                 .wrap_err("failed to print found salt")?;
         }
+        self.printed_salts = found_salts.len();
 
         Ok(())
     }
