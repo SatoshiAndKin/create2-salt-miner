@@ -201,14 +201,15 @@ static inline void keccakf(ulong *a) {
 #undef o
 }
 
-static inline bool hasLeading(uchar const *d, uint const leading) {
+static inline bool hasZeroBytes(uchar const *d, uint const min_zero_bytes) {
+  uint zero_bytes = 0;
 #pragma unroll
-  for (uint i = 0; i < leading; ++i) {
-    if (d[i] != 0)
-      return false;
+  for (uint i = 0; i < 20; ++i) {
+    if (d[i] == 0)
+      ++zero_bytes;
   }
 
-  return true;
+  return zero_bytes >= min_zero_bytes;
 }
 
 __kernel void hashMessage(__constant uchar const *d_message,
@@ -339,7 +340,7 @@ __kernel void hashMessage(__constant uchar const *d_message,
   keccakf(spongeBuffer);
 
   // determine if the address meets the constraints
-  if (hasLeading(digest, min_zeros)) {
+  if (hasZeroBytes(digest, min_zeros)) {
     // To be honest, if we are using OpenCL,
     // we just need to write one solution for all practical purposes,
     // since the chance of multiple solutions appearing

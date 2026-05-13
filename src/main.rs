@@ -40,6 +40,16 @@ struct MineArgs {
     #[arg(short, long)]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     zeros: Option<usize>,
+
+    /// Exit after the first matching salt
+    #[arg(long)]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    once: Option<bool>,
+
+    /// Print the first matching salt as abi.encode(bytes32,address,uint256)
+    #[arg(long)]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    abi: Option<bool>,
 }
 
 #[derive(Subcommand, Debug, Serialize, Deserialize)]
@@ -64,6 +74,8 @@ pub struct AppConfig {
     pub codehash: [u8; 32],
     pub worksize: u32,
     pub zeros: usize,
+    pub once: bool,
+    pub abi: bool,
 }
 
 fn main() {
@@ -77,7 +89,9 @@ fn main() {
                 .extract()
                 .unwrap();
 
-            println!("{:#?}", unwrapped);
+            if !unwrapped.abi.unwrap_or(false) {
+                println!("{:#?}", unwrapped);
+            }
 
             if unwrapped.caller.is_none() || unwrapped.codehash.is_none() {
                 eprintln!("Insufficient arguments provided. Please see --help for usage.");
@@ -103,6 +117,8 @@ fn main() {
                     .unwrap(),
                 worksize: unwrapped.worksize.unwrap_or(0x4400000_u32),
                 zeros: unwrapped.zeros.unwrap_or(1_usize),
+                once: unwrapped.once.unwrap_or(false),
+                abi: unwrapped.abi.unwrap_or(false),
             };
 
             let display = Display::new();

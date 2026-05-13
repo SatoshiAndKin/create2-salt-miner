@@ -31,14 +31,18 @@ const CONTROL_CHARACTER: u8 = 0xff;
 /// This method is highly experimental and could certainly use further optimization.
 /// Contributions are welcome as always!
 pub fn start_miner(config: AppConfig, display: Display) {
-    println!("Preparing OpenCL Miner...",);
+    if !config.abi {
+        println!("Preparing OpenCL Miner...",);
+    }
 
     let worksize = config.worksize;
     let workfactor = (worksize as u128) / 1_000_000;
 
     let mut found_list: Vec<String> = vec![];
 
-    display.start();
+    if !config.abi {
+        display.start();
+    }
 
     let platform = Platform::new(ocl::core::default_platform().unwrap());
     let device = Device::by_idx_wrap(platform, 0_usize).unwrap();
@@ -133,7 +137,7 @@ pub fn start_miner(config: AppConfig, display: Display) {
             let print_output = current_time - previous_time >= 1;
 
             // clear the terminal screen
-            if print_output {
+            if print_output && !config.abi {
                 previous_time = current_time;
 
                 // determine the number of attempts being made per second
@@ -210,15 +214,7 @@ pub fn start_miner(config: AppConfig, display: Display) {
             // get the address that results from the hash
             let address = <&Address>::try_from(&res[12..]).unwrap();
 
-            // count total and leading zero bytes
-            let mut leading = 0;
-            for (i, &b) in address.iter().enumerate() {
-                if b != 0 && leading == 0 {
-                    // set leading on finding non-zero byte
-                    leading = i;
-                    break;
-                }
-            }
+            let zero_bytes = address.iter().filter(|byte| **byte == 0).count();
 
             let output = format!(
                 "0x{}{}{} => {} (Score: {})",
@@ -226,16 +222,37 @@ pub fn start_miner(config: AppConfig, display: Display) {
                 hex::encode(salt),
                 hex::encode(solution),
                 address,
-                leading,
+                zero_bytes,
             );
 
-            if leading >= next_zeros {
-                next_zeros = leading + 1;
+            if zero_bytes >= next_zeros {
+                next_zeros = zero_bytes + 1;
+            }
+
+            if config.abi {
+                print_abi_encoded_result(&solution_message[21..53], &address, zero_bytes);
+                if config.once {
+                    return;
+                }
             }
 
             found_list.push(output);
+
+            if config.once {
+                return;
+            }
         }
     }
+}
+
+fn print_abi_encoded_result(salt: &[u8], address: &Address, score: usize) {
+    let mut encoded = Vec::with_capacity(96);
+    encoded.extend_from_slice(salt);
+    encoded.extend_from_slice(&[0_u8; 12]);
+    encoded.extend_from_slice(address.as_slice());
+    encoded.extend_from_slice(&[0_u8; 16]);
+    encoded.extend_from_slice(&(score as u128).to_be_bytes());
+    println!("0x{}", hex::encode(encoded));
 }
 
 fn mk_kernel_src(config: &AppConfig) -> String {
