@@ -31,3 +31,7 @@ Stop after 5 consecutive unsuccessful optimization experiments.
 - Experiment 1 discarded: branchless zero-byte count in OpenCL kernel measured 550-559M attempts/s vs 565M baseline.
 
 - Experiment 2 kept: use `uchar` for kernel zero-byte counter. Benchmark improved from 565.2M to ~568.9M attempts/s.
+- Experiment 3 discarded: `#pragma unroll 20` was slower/noisier at 562-567M attempts/s vs 568.9M best.
+- Experiment 4 discarded: early return in zero-byte count was slower at 544-564M attempts/s vs 568.9M best.
+- Experiment 5 discarded: doubling benchmark worksize to 142,606,336 yielded 564-565M attempts/s, below 568.9M best.
+- Experiment 6 discarded: benchmark target `min_zeros=0` was slower at 555-565M attempts/s vs 568.9M best.
