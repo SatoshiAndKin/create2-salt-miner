@@ -7,7 +7,6 @@ use indicatif::{HumanDuration, HumanFloatCount, MultiProgress, ProgressBar, Prog
 pub struct Display {
     // Extras
     start_time: Instant,
-    term: Term,
     printed_salts: usize,
 
     // Progress Bars
@@ -32,7 +31,6 @@ impl Display {
 
         Ok(Self {
             start_time: Instant::now(),
-            term: Term::stdout(),
             printed_salts: 0,
             mp,
             pb,
@@ -56,7 +54,7 @@ impl Display {
         self.pb.target.set_style(pb_style.clone());
         self.pb.target.set_message("Loading...");
 
-        self.term
+        Term::stdout()
             .clear_screen()
             .wrap_err("failed to clear screen")?;
         Ok(())
@@ -69,12 +67,6 @@ impl Display {
         found_salts: &[String],
     ) -> Result<()> {
         let total_runtime = self.start_time.elapsed().as_secs();
-
-        if total_runtime != 0 {
-            self.term
-                .clear_last_lines(3)
-                .wrap_err("failed to clear progress lines")?;
-        }
 
         if total_runtime != 0 {
             self.pb.time.set_message(format!(
