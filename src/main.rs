@@ -146,7 +146,7 @@ fn main() -> Result<()> {
                     "codehash",
                 )?,
                 worksize: unwrapped.worksize.unwrap_or(0x4400000_u32),
-                zeros: unwrapped.zeros.unwrap_or(1_usize),
+                zeros: unwrapped.zeros.unwrap_or(6_usize),
                 once: unwrapped.once,
                 abi: unwrapped.abi,
             };
