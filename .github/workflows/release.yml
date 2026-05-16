@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  windows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cross
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+
+      - name: Build custom cross image
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --tag cross-custom-create-salt-miner:x86_64-pc-windows-gnu \
+            --load \
+            -f Dockerfile.cross .
+
+      - name: Build Windows release
+        run: |
+          CROSS_CONTAINER_OPTS="--platform linux/amd64" \
+          RUSTFLAGS="-C target-cpu=x86-64" \
+          cross build --release --target x86_64-pc-windows-gnu
+
+      - name: Upload Windows artifact
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/x86_64-pc-windows-gnu/release/salty.exe
+          generate_release_notes: true
