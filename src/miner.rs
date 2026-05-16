@@ -4,7 +4,7 @@ use indicatif::HumanDuration;
 use ocl::{Buffer, Context, Device, MemFlags, Platform, ProQue, Program, Queue};
 use rand::RngExt;
 use std::fmt::Write;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::{AppConfig, Display};
 
@@ -12,6 +12,20 @@ static KERNEL_SRC: &str = include_str!("./kernels/keccak256.cl");
 
 const CONTROL_CHARACTER: u8 = 0xff;
 const READBACK_INTERVAL_BATCHES: u32 = 8;
+
+#[derive(Debug, Clone)]
+pub struct MiningOutcome {
+    pub salt: [u8; 32],
+    pub address: Address,
+    pub score: usize,
+    pub runtime: Duration,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum MiningStop {
+    FirstMatch,
+    Timed(Duration),
+}
 
 /// Given a `config` object with a factory address, a caller address, a keccak-256 hash
 /// of the contract initialization code, search for salts using OpenCL that will enable
@@ -282,6 +296,184 @@ pub fn benchmark_miner(config: AppConfig, warmup_batches: u64, batches: u64) -> 
     let elapsed_ns = start.elapsed().as_nanos();
     let attempts = u128::from(worksize) * u128::from(batches);
     Ok(attempts * 1_000_000_000 / elapsed_ns)
+}
+
+pub fn mine_once(config: AppConfig, stop: MiningStop) -> Result<Option<MiningOutcome>> {
+    let start = Instant::now();
+    let worksize = config.worksize;
+
+    let platform = Platform::new(
+        ocl::core::default_platform().wrap_err("failed to get default OpenCL platform")?,
+    );
+    let device =
+        Device::by_idx_wrap(platform, 0_usize).wrap_err("failed to get default OpenCL device")?;
+    let context = Context::builder()
+        .platform(platform)
+        .devices(device)
+        .build()
+        .wrap_err("failed to build OpenCL context")?;
+
+    let program = Program::builder()
+        .devices(device)
+        .src(mk_kernel_src(&config))
+        .build(&context)
+        .wrap_err("failed to build OpenCL program")?;
+
+    let queue = Queue::new(&context, device, None).wrap_err("failed to create OpenCL queue")?;
+    let program_queue = ProQue::new(context, queue, program, Some(worksize));
+
+    let mut rng = rand::rng();
+    let mut next_zeros = config.zeros;
+    let mut best_outcome = None;
+
+    let mut salt = FixedBytes::<4>::random();
+    let mut nonce: [u32; 1] = rng.random();
+    let mut solutions = vec![0_u64; 1];
+    let solutions_buffer = Buffer::builder()
+        .queue(program_queue.queue().clone())
+        .flags(MemFlags::new().read_write())
+        .len(1)
+        .copy_host_slice(&solutions)
+        .build()
+        .wrap_err("failed to build solutions buffer")?;
+
+    let kernel = program_queue
+        .kernel_builder("hashMessage")
+        .arg_named("message", u32::from_le_bytes(salt.0))
+        .arg_named("nonce", nonce[0])
+        .arg_named("min_zeros", next_zeros as u32)
+        .arg_named("solutions", &solutions_buffer)
+        .build()
+        .wrap_err("failed to build OpenCL kernel")?;
+
+    loop {
+        salt = FixedBytes::<4>::random();
+        kernel
+            .set_arg("message", u32::from_le_bytes(salt.0))
+            .wrap_err("failed to set message kernel arg")?;
+
+        nonce = rng.random();
+        kernel
+            .set_arg("nonce", nonce[0])
+            .wrap_err("failed to set nonce kernel arg")?;
+
+        solutions[0] = 0;
+        solutions_buffer
+            .write(&solutions)
+            .enq()
+            .wrap_err("failed to reset solutions buffer")?;
+
+        let mut pending_batches = 0_u32;
+        loop {
+            unsafe {
+                kernel.enq().wrap_err("failed to enqueue OpenCL kernel")?;
+            };
+
+            pending_batches += 1;
+
+            if pending_batches == READBACK_INTERVAL_BATCHES {
+                solutions_buffer
+                    .read(&mut solutions)
+                    .enq()
+                    .wrap_err("failed to read OpenCL solutions")?;
+                pending_batches = 0;
+            }
+
+            if solutions[0] != 0 {
+                break;
+            }
+
+            if let MiningStop::Timed(max_runtime) = stop
+                && start.elapsed() >= max_runtime
+            {
+                if pending_batches > 0 {
+                    solutions_buffer
+                        .read(&mut solutions)
+                        .enq()
+                        .wrap_err("failed to read OpenCL solutions")?;
+
+                    if solutions[0] != 0 {
+                        break;
+                    }
+                }
+
+                return Ok(best_outcome);
+            }
+
+            nonce[0] += 1;
+            kernel
+                .set_arg("nonce", nonce[0])
+                .wrap_err("failed to set nonce kernel arg")?;
+        }
+
+        for &solution in &solutions {
+            if solution == 0 {
+                continue;
+            }
+
+            let outcome = mining_outcome(&config, &salt, solution, start)?;
+
+            match stop {
+                MiningStop::FirstMatch => return Ok(Some(outcome)),
+                MiningStop::Timed(max_runtime) => {
+                    if best_outcome
+                        .as_ref()
+                        .is_none_or(|best: &MiningOutcome| outcome.score > best.score)
+                    {
+                        next_zeros = outcome.score + 1;
+                        kernel
+                            .set_arg("min_zeros", next_zeros as u32)
+                            .wrap_err("failed to set min_zeros kernel arg")?;
+                        best_outcome = Some(outcome);
+                    }
+
+                    if start.elapsed() >= max_runtime {
+                        return Ok(best_outcome);
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn mining_outcome(
+    config: &AppConfig,
+    salt: &FixedBytes<4>,
+    solution: u64,
+    start: Instant,
+) -> Result<MiningOutcome> {
+    let solution = solution.to_le_bytes();
+
+    let mut solution_message = [0; 85];
+    solution_message[0] = CONTROL_CHARACTER;
+    solution_message[1..21].copy_from_slice(&config.factory);
+    solution_message[21..41].copy_from_slice(&config.caller);
+    solution_message[41..45].copy_from_slice(&salt[..]);
+    solution_message[45..53].copy_from_slice(&solution);
+    solution_message[53..].copy_from_slice(&config.codehash);
+
+    let mut hash = Keccak256::new();
+    hash.update(solution_message);
+
+    let mut res: [u8; 32] = [0; 32];
+    hash.finalize_into(&mut res);
+
+    let address = <&Address>::try_from(&res[12..])
+        .wrap_err("failed to derive address from hash")?
+        .to_owned();
+    let score = address.iter().filter(|byte| **byte == 0).count();
+
+    let mut create2_salt = [0_u8; 32];
+    create2_salt[0..20].copy_from_slice(&config.caller);
+    create2_salt[20..24].copy_from_slice(&salt[..]);
+    create2_salt[24..32].copy_from_slice(&solution);
+
+    Ok(MiningOutcome {
+        salt: create2_salt,
+        address,
+        score,
+        runtime: start.elapsed(),
+    })
 }
 
 fn print_abi_encoded_result(salt: &[u8], address: &Address, score: usize) {

@@ -6,13 +6,17 @@ use figment::{
     providers::{Format, Serialized, Toml},
 };
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 mod display;
 mod gpgpu;
 mod miner;
+mod server;
 
 pub use display::Display;
 pub use miner::start_miner;
+
+pub const DEFAULT_FACTORY: &str = "0x0000000000FFe8B47B3e2130213B802212439497";
 
 #[derive(Parser, Debug, Serialize, Deserialize)]
 struct MineArgs {
@@ -83,12 +87,32 @@ struct BenchArgs {
     warmup_batches: u64,
 }
 
+#[derive(Parser, Debug, Serialize, Deserialize)]
+struct ServeArgs {
+    /// Host to bind the HTTP server to
+    #[arg(long)]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    host: Option<String>,
+
+    /// Port to bind the HTTP server to
+    #[arg(long)]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    port: Option<u16>,
+
+    /// SQLite cache file path
+    #[arg(long)]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    cache_path: Option<PathBuf>,
+}
+
 #[derive(Subcommand, Debug, Serialize, Deserialize)]
 enum Commands {
     /// Start Create2 Salt Miner
     Mine(MineArgs),
     /// Benchmark OpenCL mining throughput
     Bench(BenchArgs),
+    /// Start remote HTTP mining server
+    Serve(ServeArgs),
     /// List available OpenCL Platforms (& Devices), including default
     List {},
 }
@@ -111,7 +135,8 @@ pub struct AppConfig {
     pub abi: bool,
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match &cli.mode {
@@ -130,7 +155,7 @@ fn main() -> Result<()> {
                 factory: decode_fixed(
                     &unwrapped
                         .factory
-                        .unwrap_or_else(|| "0x0000000000FFe8B47B3e2130213B802212439497".to_owned()),
+                        .unwrap_or_else(|| DEFAULT_FACTORY.to_owned()),
                     "factory",
                 )?,
                 caller: decode_fixed(
@@ -173,7 +198,7 @@ fn main() -> Result<()> {
                 factory: decode_fixed(
                     &unwrapped
                         .factory
-                        .unwrap_or_else(|| "0x0000000000FFe8B47B3e2130213B802212439497".to_owned()),
+                        .unwrap_or_else(|| DEFAULT_FACTORY.to_owned()),
                     "factory",
                 )?,
                 caller: decode_fixed(
@@ -198,12 +223,27 @@ fn main() -> Result<()> {
                 miner::benchmark_miner(app_config, unwrapped.warmup_batches, unwrapped.batches)?;
             println!("METRIC attempts_per_sec={attempts_per_sec}");
         }
+        Commands::Serve(args) => {
+            let unwrapped: ServeArgs = Figment::new()
+                .merge(Toml::file("salty.toml"))
+                .merge(Serialized::defaults(args))
+                .extract()
+                .wrap_err("failed to load configuration")?;
+            server::start_server(server::ServerConfig {
+                host: unwrapped.host.unwrap_or_else(|| "0.0.0.0".to_owned()),
+                port: unwrapped.port.unwrap_or(3000),
+                cache_path: unwrapped
+                    .cache_path
+                    .unwrap_or_else(|| PathBuf::from("salty-cache.sqlite")),
+            })
+            .await?;
+        }
     }
 
     Ok(())
 }
 
-fn decode_fixed<const N: usize>(value: &str, field: &str) -> Result<[u8; N]> {
+pub fn decode_fixed<const N: usize>(value: &str, field: &str) -> Result<[u8; N]> {
     let bytes = hex::decode(value).wrap_err_with(|| format!("invalid {field} hex"))?;
     bytes
         .try_into()
