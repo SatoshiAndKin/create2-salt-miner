@@ -16,7 +16,7 @@ use axum::{
 use eyre::{Context, Result, eyre};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
-use tokio::net::TcpListener;
+use tokio::{net::TcpListener, sync::Notify};
 use utoipa::{OpenApi, ToSchema};
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -35,7 +35,7 @@ pub struct ServerConfig {
 #[derive(Debug, Clone)]
 struct ServerState {
     cache: Arc<Mutex<Connection>>,
-    miner_lock: Arc<tokio::sync::Mutex<()>>,
+    jobs_changed: Arc<Notify>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -93,11 +93,13 @@ pub async fn start_server(config: ServerConfig) -> Result<()> {
     let connection = Connection::open(&config.cache_path)
         .wrap_err_with(|| format!("failed to open cache at {}", config.cache_path.display()))?;
     init_cache(&connection).wrap_err("failed to initialize cache")?;
+    requeue_running_jobs(&connection).wrap_err("failed to requeue interrupted jobs")?;
 
     let state = ServerState {
         cache: Arc::new(Mutex::new(connection)),
-        miner_lock: Arc::new(tokio::sync::Mutex::new(())),
+        jobs_changed: Arc::new(Notify::new()),
     };
+    tokio::spawn(mining_worker(state.clone()));
 
     let app = Router::new()
         .route("/health", get(health))
@@ -174,7 +176,7 @@ async fn mine_inner(
     request: MineRequest,
 ) -> std::result::Result<MineResponse, ServerError> {
     let normalized = normalize_request(request).map_err(ServerError::bad_request)?;
-    let config = normalized
+    normalized
         .to_app_config()
         .map_err(ServerError::bad_request)?;
     let request_key = serde_json::to_string(&normalized)
@@ -187,22 +189,90 @@ async fn mine_inner(
         return Ok(response);
     }
 
-    let _permit = state.miner_lock.lock().await;
+    enqueue_job(&state, &request_key, &normalized).map_err(ServerError::internal)?;
+    state.jobs_changed.notify_one();
 
-    if let Some(mut response) =
-        get_cached_response(&state, &request_key).map_err(ServerError::internal)?
-    {
-        response.cache_hit = true;
-        return Ok(response);
+    wait_for_mining_response(&state, &request_key).await
+}
+
+async fn mining_worker(state: ServerState) {
+    loop {
+        match run_next_job(&state).await {
+            Ok(true) => continue,
+            Ok(false) => state.jobs_changed.notified().await,
+            Err(error) => {
+                eprintln!("mining worker failed: {error:?}");
+                state.jobs_changed.notified().await;
+            }
+        }
     }
+}
 
+async fn run_next_job(state: &ServerState) -> Result<bool> {
+    let Some((request_key, normalized)) = claim_next_job(state)? else {
+        return Ok(false);
+    };
+
+    let result = run_claimed_job(state, &request_key, &normalized).await;
+    if let Err(error) = &result
+        && let Err(mark_error) = mark_job_failed(state, &request_key, &error.to_string())
+    {
+        eprintln!("failed to mark mining job failed: {mark_error:?}");
+    }
+    state.jobs_changed.notify_waiters();
+    result.map(|()| true)
+}
+
+async fn run_claimed_job(
+    state: &ServerState,
+    request_key: &str,
+    normalized: &NormalizedMineRequest,
+) -> Result<()> {
+    let config = normalized.to_app_config()?;
     let stop = normalized.stop_mode();
     let outcome = tokio::task::spawn_blocking(move || mine_once(config, stop))
         .await
-        .map_err(|error| ServerError::internal(eyre!("mining task failed to join: {error}")))?
-        .map_err(ServerError::internal)?;
+        .wrap_err("mining task failed to join")?;
 
-    let response = match outcome {
+    match outcome {
+        Ok(outcome) => {
+            let response = mining_response(outcome, normalized);
+            insert_cached_response(state, request_key, normalized, &response)?;
+            mark_job_succeeded(state, request_key)?;
+        }
+        Err(error) => mark_job_failed(state, request_key, &error.to_string())?,
+    }
+
+    Ok(())
+}
+
+async fn wait_for_mining_response(
+    state: &ServerState,
+    request_key: &str,
+) -> std::result::Result<MineResponse, ServerError> {
+    loop {
+        let changed = state.jobs_changed.notified();
+
+        if let Some(mut response) =
+            get_cached_response(state, request_key).map_err(ServerError::internal)?
+        {
+            response.cache_hit = true;
+            return Ok(response);
+        }
+
+        if let Some(error) = get_job_error(state, request_key).map_err(ServerError::internal)? {
+            return Err(ServerError::internal(eyre!(error)));
+        }
+
+        changed.await;
+    }
+}
+
+fn mining_response(
+    outcome: Option<crate::miner::MiningOutcome>,
+    request: &NormalizedMineRequest,
+) -> MineResponse {
+    match outcome {
         Some(outcome) => MineResponse {
             cache_hit: false,
             found: true,
@@ -217,18 +287,11 @@ async fn mine_inner(
             salt: None,
             address: None,
             score: None,
-            runtime_ms: normalized
+            runtime_ms: request
                 .max_runtime_secs
                 .map_or(0, |secs| u128::from(secs) * u128::from(1_000_u16)),
         },
-    };
-
-    if response.found {
-        insert_cached_response(&state, &request_key, &normalized, &response)
-            .map_err(ServerError::internal)?;
     }
-
-    Ok(response)
 }
 
 impl NormalizedMineRequest {
@@ -283,6 +346,26 @@ fn init_cache(connection: &Connection) -> rusqlite::Result<()> {
             created_at INTEGER NOT NULL
         )",
         [],
+    )?;
+    connection.execute(
+        "CREATE TABLE IF NOT EXISTS mine_jobs (
+            request_key TEXT PRIMARY KEY,
+            request_json TEXT NOT NULL,
+            status TEXT NOT NULL,
+            error TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        )",
+        [],
+    )?;
+    Ok(())
+}
+
+fn requeue_running_jobs(connection: &Connection) -> rusqlite::Result<()> {
+    let now = unix_timestamp();
+    connection.execute(
+        "UPDATE mine_jobs SET status = 'queued', error = NULL, updated_at = ?1 WHERE status = 'running'",
+        [now],
     )?;
     Ok(())
 }
@@ -349,4 +432,122 @@ fn insert_cached_response(
         )
         .wrap_err("failed to write cache")?;
     Ok(())
+}
+
+fn enqueue_job(
+    state: &ServerState,
+    request_key: &str,
+    request: &NormalizedMineRequest,
+) -> Result<()> {
+    let request_json =
+        serde_json::to_string(request).wrap_err("failed to serialize job request")?;
+    let now = unix_timestamp();
+    let cache = state
+        .cache
+        .lock()
+        .map_err(|_| eyre!("cache mutex poisoned"))?;
+    cache
+        .execute(
+            "INSERT INTO mine_jobs (
+                request_key,
+                request_json,
+                status,
+                error,
+                created_at,
+                updated_at
+            ) VALUES (?1, ?2, 'queued', NULL, ?3, ?3)
+            ON CONFLICT(request_key) DO UPDATE SET
+                status = CASE WHEN mine_jobs.status = 'failed' THEN 'queued' ELSE mine_jobs.status END,
+                error = CASE WHEN mine_jobs.status = 'failed' THEN NULL ELSE mine_jobs.error END,
+                updated_at = CASE WHEN mine_jobs.status = 'failed' THEN excluded.updated_at ELSE mine_jobs.updated_at END",
+            params![request_key, request_json, now],
+        )
+        .wrap_err("failed to enqueue mining job")?;
+    Ok(())
+}
+
+fn claim_next_job(state: &ServerState) -> Result<Option<(String, NormalizedMineRequest)>> {
+    let now = unix_timestamp();
+    let cache = state
+        .cache
+        .lock()
+        .map_err(|_| eyre!("cache mutex poisoned"))?;
+    let job: Option<(String, String)> = cache
+        .query_row(
+            "SELECT request_key, request_json
+             FROM mine_jobs
+             WHERE status = 'queued'
+             ORDER BY created_at, request_key
+             LIMIT 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()
+        .wrap_err("failed to read queued job")?;
+
+    let Some((request_key, request_json)) = job else {
+        return Ok(None);
+    };
+
+    cache
+        .execute(
+            "UPDATE mine_jobs SET status = 'running', error = NULL, updated_at = ?1 WHERE request_key = ?2",
+            params![now, request_key],
+        )
+        .wrap_err("failed to mark mining job running")?;
+    drop(cache);
+
+    let request = serde_json::from_str(&request_json).wrap_err("failed to deserialize job")?;
+    Ok(Some((request_key, request)))
+}
+
+fn mark_job_succeeded(state: &ServerState, request_key: &str) -> Result<()> {
+    let now = unix_timestamp();
+    let cache = state
+        .cache
+        .lock()
+        .map_err(|_| eyre!("cache mutex poisoned"))?;
+    cache
+        .execute(
+            "UPDATE mine_jobs SET status = 'succeeded', error = NULL, updated_at = ?1 WHERE request_key = ?2",
+            params![now, request_key],
+        )
+        .wrap_err("failed to mark mining job succeeded")?;
+    Ok(())
+}
+
+fn mark_job_failed(state: &ServerState, request_key: &str, error: &str) -> Result<()> {
+    let now = unix_timestamp();
+    let cache = state
+        .cache
+        .lock()
+        .map_err(|_| eyre!("cache mutex poisoned"))?;
+    cache
+        .execute(
+            "UPDATE mine_jobs SET status = 'failed', error = ?1, updated_at = ?2 WHERE request_key = ?3",
+            params![error, now, request_key],
+        )
+        .wrap_err("failed to mark mining job failed")?;
+    Ok(())
+}
+
+fn get_job_error(state: &ServerState, request_key: &str) -> Result<Option<String>> {
+    let cache = state
+        .cache
+        .lock()
+        .map_err(|_| eyre!("cache mutex poisoned"))?;
+    cache
+        .query_row(
+            "SELECT error FROM mine_jobs WHERE request_key = ?1 AND status = 'failed'",
+            [request_key],
+            |row| row.get(0),
+        )
+        .optional()
+        .wrap_err("failed to read job status")
+}
+
+fn unix_timestamp() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_secs() as i64)
 }
