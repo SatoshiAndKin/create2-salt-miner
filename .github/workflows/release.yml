@@ -30,6 +30,32 @@ jobs:
         if: steps.release.outputs.pr
         run: cargo generate-lockfile
 
+      - name: Validate lockfile
+        if: steps.release.outputs.pr
+        run: cargo metadata --locked --format-version 1 > /dev/null
+
+      - name: Rust fmt check
+        if: steps.release.outputs.pr
+        run: cargo fmt --all -- --check
+
+      - name: Rust check (locked)
+        if: steps.release.outputs.pr
+        run: cargo check --locked
+
+      - name: Rust clippy (locked)
+        if: steps.release.outputs.pr
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Install cargo-deny
+        if: steps.release.outputs.pr
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+
+      - name: Run cargo-deny checks
+        if: steps.release.outputs.pr
+        run: cargo deny check
+
       - name: Commit updated lockfile
         if: steps.release.outputs.pr
         run: |
@@ -65,7 +91,7 @@ jobs:
         run: |
           CROSS_CONTAINER_OPTS="--platform linux/amd64" \
           RUSTFLAGS="-C target-cpu=x86-64" \
-          cross build --release --target x86_64-pc-windows-gnu
+          cross build --release --locked --target x86_64-pc-windows-gnu
 
       - name: Upload Windows artifact
         uses: softprops/action-gh-release@v2
