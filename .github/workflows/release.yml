@@ -69,6 +69,8 @@ jobs:
     needs: release-please
     if: needs.release-please.outputs.release_created
     runs-on: ubuntu-latest
+    env:
+      WINDOWS_PGO_PROFDATA_PATH: ${{ github.workspace }}/.pgo/salty-windows-x86_64.profdata
     steps:
       - uses: actions/checkout@v4
         with:
@@ -89,8 +91,16 @@ jobs:
 
       - name: Build Windows release
         run: |
+          set -euo pipefail
+          windows_rustflags="-C target-cpu=x86-64"
+          if [[ -f "${WINDOWS_PGO_PROFDATA_PATH}" ]]; then
+            echo "Using Windows PGO profile: ${WINDOWS_PGO_PROFDATA_PATH}"
+            windows_rustflags="${windows_rustflags} -Cprofile-use=${WINDOWS_PGO_PROFDATA_PATH} -Cllvm-args=-pgo-warn-missing-function"
+          else
+            echo "Windows PGO profile not found at ${WINDOWS_PGO_PROFDATA_PATH}; building without profile-use"
+          fi
           CROSS_CONTAINER_OPTS="--platform linux/amd64" \
-          RUSTFLAGS="-C target-cpu=x86-64" \
+          RUSTFLAGS="${windows_rustflags}" \
           cross build --release --locked --target x86_64-pc-windows-gnu
 
       - name: Upload Windows artifact
@@ -105,7 +115,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ENABLE_BOLT: ${{ vars.ENABLE_BOLT || '0' }}
-      PGO_PROFDATA_PATH: ${{ github.workspace }}/.pgo/salty.profdata
+      LINUX_PGO_PROFDATA_PATH: ${{ github.workspace }}/.pgo/salty-linux-x86_64.profdata
     steps:
       - uses: actions/checkout@v4
         with:
@@ -139,17 +149,17 @@ jobs:
       - name: Verify committed PGO profile exists
         run: |
           set -euo pipefail
-          if [[ ! -f "${PGO_PROFDATA_PATH}" ]]; then
-            echo "::error file=${PGO_PROFDATA_PATH}::Missing committed PGO profile. Expected at .pgo/salty.profdata"
+          if [[ ! -f "${LINUX_PGO_PROFDATA_PATH}" ]]; then
+            echo "::error file=${LINUX_PGO_PROFDATA_PATH}::Missing committed Linux PGO profile. Expected at .pgo/salty-linux-x86_64.profdata"
             exit 1
           fi
-          echo "Using PGO profile: ${PGO_PROFDATA_PATH}"
+          echo "Using Linux PGO profile: ${LINUX_PGO_PROFDATA_PATH}"
 
       - name: Build Linux release with committed PGO profile
         run: |
           set -euo pipefail
           host_triple="$(rustc -vV | sed -n 's/^host: //p')"
-          RUSTFLAGS="-Cprofile-use=${PGO_PROFDATA_PATH} -Cllvm-args=-pgo-warn-missing-function" \
+          RUSTFLAGS="-Cprofile-use=${LINUX_PGO_PROFDATA_PATH} -Cllvm-args=-pgo-warn-missing-function" \
             cargo build --release --locked --target "${host_triple}" --bin salty
 
       - name: Collect Linux PGO artifact
