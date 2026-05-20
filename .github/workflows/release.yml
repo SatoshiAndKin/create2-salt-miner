@@ -92,13 +92,12 @@ jobs:
       - name: Build Windows release
         run: |
           set -euo pipefail
-          windows_rustflags="-C target-cpu=x86-64"
-          if [[ -f "${WINDOWS_PGO_PROFDATA_PATH}" ]]; then
-            echo "Using Windows PGO profile: ${WINDOWS_PGO_PROFDATA_PATH}"
-            windows_rustflags="${windows_rustflags} -Cprofile-use=${WINDOWS_PGO_PROFDATA_PATH} -Cllvm-args=-pgo-warn-missing-function"
-          else
-            echo "Windows PGO profile not found at ${WINDOWS_PGO_PROFDATA_PATH}; building without profile-use"
+          if [[ ! -f "${WINDOWS_PGO_PROFDATA_PATH}" ]]; then
+            echo "::error file=${WINDOWS_PGO_PROFDATA_PATH}::Missing committed Windows PGO profile. Expected at .pgo/salty-windows-x86_64.profdata"
+            exit 1
           fi
+          echo "Using Windows PGO profile: ${WINDOWS_PGO_PROFDATA_PATH}"
+          windows_rustflags="-C target-cpu=x86-64 -Cprofile-use=${WINDOWS_PGO_PROFDATA_PATH} -Cllvm-args=-pgo-warn-missing-function"
           CROSS_CONTAINER_OPTS="--platform linux/amd64" \
           RUSTFLAGS="${windows_rustflags}" \
           cross build --release --locked --target x86_64-pc-windows-gnu
