@@ -104,9 +104,8 @@ jobs:
     if: needs.release-please.outputs.release_created
     runs-on: ubuntu-latest
     env:
-      TRAIN_MIN_RUNTIME_SECS: "20"
-      TRAIN_ZEROS: "1"
       ENABLE_BOLT: ${{ vars.ENABLE_BOLT || '0' }}
+      PGO_PROFDATA_PATH: ${{ github.workspace }}/.pgo/salty.profdata
     steps:
       - uses: actions/checkout@v4
         with:
@@ -137,19 +136,21 @@ jobs:
       - name: Add Rust llvm tools
         run: rustup component add llvm-tools-preview
 
-      - name: Build instrumented binary (PGO)
-        run: just pgo-instrument
-
-      - name: Train profile data (PGO)
+      - name: Verify committed PGO profile exists
         run: |
           set -euo pipefail
-          if ! just pgo-train; then
-            echo "pgo-train failed, falling back to test-driven profile generation"
-            cargo pgo test -- --all-targets
+          if [[ ! -f "${PGO_PROFDATA_PATH}" ]]; then
+            echo "::error file=${PGO_PROFDATA_PATH}::Missing committed PGO profile. Expected at .pgo/salty.profdata"
+            exit 1
           fi
+          echo "Using PGO profile: ${PGO_PROFDATA_PATH}"
 
-      - name: Build optimized binary (PGO)
-        run: just pgo-optimize
+      - name: Build Linux release with committed PGO profile
+        run: |
+          set -euo pipefail
+          host_triple="$(rustc -vV | sed -n 's/^host: //p')"
+          RUSTFLAGS="-Cprofile-use=${PGO_PROFDATA_PATH} -Cllvm-args=-pgo-warn-missing-function" \
+            cargo build --release --locked --target "${host_triple}" --bin salty
 
       - name: Collect Linux PGO artifact
         id: pgo_artifact
