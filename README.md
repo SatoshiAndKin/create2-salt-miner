@@ -81,6 +81,7 @@ The following parameters are available when using the `mine` command.
 | `worksize` | Work size per batch                                                  | `0x4400000`                                  |
 | `zeros`    | Minimum zero bytes to look for in the created contract (no stop)     | `1`                                          |
 | `remote_server` | Remote Salty HTTP server base URL used by `mine` instead of local OpenCL mining | unset                              |
+| `min_runtime_secs` | Mine for at least this many seconds, then return the best qualifying result found | (disabled) |
 
 ## Performance Benchmarks
 

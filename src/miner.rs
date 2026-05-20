@@ -51,6 +51,29 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
     if !config.abi {
         println!("Preparing OpenCL Miner...",);
     }
+
+    if let Some(min_runtime_secs) = config.min_runtime_secs {
+        let abi = config.abi;
+        let outcome = mine_once(
+            config,
+            MiningStop::Timed(Duration::from_secs(min_runtime_secs)),
+        )?;
+        if let Some(outcome) = outcome {
+            if abi {
+                print_abi_encoded_result(&outcome.salt, &outcome.address, outcome.score);
+            } else {
+                println!(
+                    "0x{} => {} (Score: {}, Runtime: {})",
+                    hex::encode(outcome.salt),
+                    outcome.address,
+                    outcome.score,
+                    HumanDuration(outcome.runtime),
+                );
+            }
+        }
+        return Ok(());
+    }
+
     let start = Instant::now();
 
     let worksize = config.worksize;

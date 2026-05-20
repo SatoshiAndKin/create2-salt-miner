@@ -55,7 +55,7 @@ pub struct MineRequest {
     pub codehash: String,
     pub worksize: Option<u32>,
     pub zeros: Option<usize>,
-    pub max_runtime_secs: Option<u64>,
+    pub min_runtime_secs: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -65,7 +65,7 @@ struct NormalizedMineRequest {
     codehash: String,
     worksize: u32,
     zeros: usize,
-    max_runtime_secs: Option<u64>,
+    min_runtime_secs: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -414,7 +414,7 @@ fn mining_response(
             address: None,
             score: None,
             runtime_ms: request
-                .max_runtime_secs
+                .min_runtime_secs
                 .map_or(0, |secs| u128::from(secs) * u128::from(1_000_u16)),
         },
     }
@@ -430,19 +430,20 @@ impl NormalizedMineRequest {
             zeros: self.zeros,
             once: true,
             abi: false,
+            min_runtime_secs: None,
         })
     }
 
     fn stop_mode(&self) -> MiningStop {
-        self.max_runtime_secs
+        self.min_runtime_secs
             .map(|secs| MiningStop::Timed(std::time::Duration::from_secs(secs)))
             .unwrap_or(MiningStop::FirstMatch)
     }
 }
 
 fn normalize_request(request: MineRequest) -> Result<NormalizedMineRequest> {
-    let max_runtime_secs = match request.max_runtime_secs {
-        Some(0) => return Err(eyre!("max_runtime_secs must be greater than zero")),
+    let min_runtime_secs = match request.min_runtime_secs {
+        Some(0) => return Err(eyre!("min_runtime_secs must be greater than zero")),
         other => other,
     };
 
@@ -454,7 +455,7 @@ fn normalize_request(request: MineRequest) -> Result<NormalizedMineRequest> {
         codehash: request.codehash,
         worksize: request.worksize.unwrap_or(0x4400000_u32),
         zeros: request.zeros.unwrap_or(6_usize),
-        max_runtime_secs,
+        min_runtime_secs,
     })
 }
 
@@ -551,7 +552,7 @@ fn insert_cached_response(
                 request.codehash,
                 request.worksize,
                 request.zeros as i64,
-                request.max_runtime_secs.map(|secs| secs as i64),
+                request.min_runtime_secs.map(|secs| secs as i64),
                 response_json,
                 created_at as i64
             ],

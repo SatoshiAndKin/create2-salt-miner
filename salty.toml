@@ -9,3 +9,6 @@ zeros = 6
 
 # Remote Server
 # remote_server = "http://127.0.0.1:3000"
+
+# Optional: mine for at least this many seconds and then return best qualifying result
+# min_runtime_secs = 60

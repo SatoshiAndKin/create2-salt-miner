@@ -53,6 +53,11 @@ struct MineArgs {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     once: bool,
 
+    /// Mine for at least this many seconds, then return the best qualifying result found
+    #[arg(long)]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    min_runtime_secs: Option<u64>,
+
     /// Print the first matching salt as abi.encode(bytes32,address,uint256)
     #[arg(long)]
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -141,6 +146,7 @@ pub struct AppConfig {
     pub zeros: usize,
     pub once: bool,
     pub abi: bool,
+    pub min_runtime_secs: Option<u64>,
 }
 
 #[tokio::main]
@@ -154,6 +160,10 @@ async fn main() -> Result<()> {
                 .merge(Serialized::defaults(args))
                 .extract()
                 .wrap_err("failed to load configuration")?;
+
+            if matches!(unwrapped.min_runtime_secs, Some(0)) {
+                return Err(eyre!("min_runtime_secs must be greater than zero"));
+            }
 
             if !unwrapped.abi {
                 println!("{:#?}", unwrapped);
@@ -180,7 +190,7 @@ async fn main() -> Result<()> {
                         codehash,
                         worksize: Some(worksize),
                         zeros: Some(zeros),
-                        max_runtime_secs: None,
+                        min_runtime_secs: unwrapped.min_runtime_secs,
                     },
                 )
                 .await?;
@@ -196,6 +206,7 @@ async fn main() -> Result<()> {
                 zeros,
                 once: unwrapped.once,
                 abi: unwrapped.abi,
+                min_runtime_secs: unwrapped.min_runtime_secs,
             };
 
             let display = if app_config.abi {
@@ -260,6 +271,7 @@ fn build_bench_app_config(args: &BenchArgs) -> Result<AppConfig> {
         zeros: 21,
         once: false,
         abi: true,
+        min_runtime_secs: None,
     })
 }
 
