@@ -98,3 +98,120 @@ jobs:
         with:
           tag_name: ${{ needs.release-please.outputs.tag_name }}
           files: target/x86_64-pc-windows-gnu/release/salty.exe
+
+  linux-pgo-bolt:
+    needs: release-please
+    if: needs.release-please.outputs.release_created
+    runs-on: ubuntu-latest
+    env:
+      TRAIN_MIN_RUNTIME_SECS: "20"
+      TRAIN_ZEROS: "1"
+      ENABLE_BOLT: ${{ vars.ENABLE_BOLT || '0' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux/OpenCL/LLVM deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            ocl-icd-libopencl1 \
+            ocl-icd-opencl-dev \
+            opencl-headers \
+            pocl-opencl-icd \
+            clinfo \
+            llvm-18 \
+            llvm-18-tools
+          echo "/usr/lib/llvm-18/bin" >> "$GITHUB_PATH"
+
+      - name: Install cargo-pgo and just
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-pgo,just
+
+      - name: Add Rust llvm tools
+        run: rustup component add llvm-tools-preview
+
+      - name: Build instrumented binary (PGO)
+        run: just pgo-instrument
+
+      - name: Train profile data (PGO)
+        run: |
+          set -euo pipefail
+          if ! just pgo-train; then
+            echo "pgo-train failed, falling back to test-driven profile generation"
+            cargo pgo test -- --all-targets
+          fi
+
+      - name: Build optimized binary (PGO)
+        run: just pgo-optimize
+
+      - name: Collect Linux PGO artifact
+        id: pgo_artifact
+        run: |
+          set -euo pipefail
+          host_triple="$(rustc -vV | sed -n 's/^host: //p')"
+          mkdir -p dist
+          cp "target/${host_triple}/release/salty" "dist/salty-linux-pgo"
+          echo "path=dist/salty-linux-pgo" >> "$GITHUB_OUTPUT"
+
+      - name: BOLT preflight
+        id: bolt_preflight
+        run: |
+          set -euo pipefail
+          if command -v llvm-bolt-18 >/dev/null 2>&1 && ! command -v llvm-bolt >/dev/null 2>&1; then
+            sudo ln -sf "$(command -v llvm-bolt-18)" /usr/local/bin/llvm-bolt
+          fi
+          if command -v merge-fdata-18 >/dev/null 2>&1 && ! command -v merge-fdata >/dev/null 2>&1; then
+            sudo ln -sf "$(command -v merge-fdata-18)" /usr/local/bin/merge-fdata
+          fi
+          if [[ "${ENABLE_BOLT}" != "1" ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "reason=ENABLE_BOLT!=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if command -v llvm-bolt >/dev/null 2>&1 && command -v merge-fdata >/dev/null 2>&1; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "reason=missing llvm-bolt/merge-fdata" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build BOLT-optimized binary (optional)
+        if: steps.bolt_preflight.outputs.enabled == 'true'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          ENABLE_BOLT=1 just bolt-instrument
+          ENABLE_BOLT=1 just bolt-train
+          ENABLE_BOLT=1 just bolt-optimize
+
+      - name: Collect Linux BOLT artifact (if produced)
+        id: bolt_artifact
+        if: steps.bolt_preflight.outputs.enabled == 'true'
+        run: |
+          set -euo pipefail
+          host_triple="$(rustc -vV | sed -n 's/^host: //p')"
+          mkdir -p dist
+          if [[ -x "target/${host_triple}/release/salty-bolt-optimized" ]]; then
+            cp "target/${host_triple}/release/salty-bolt-optimized" "dist/salty-linux-bolt"
+            echo "path=dist/salty-linux-bolt" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload Linux PGO artifact
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          files: ${{ steps.pgo_artifact.outputs.path }}
+
+      - name: Upload Linux BOLT artifact (optional)
+        if: steps.bolt_artifact.outputs.path != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          files: ${{ steps.bolt_artifact.outputs.path }}
