@@ -24,7 +24,10 @@ pub struct MiningOutcome {
 #[derive(Debug, Clone, Copy)]
 pub enum MiningStop {
     FirstMatch,
-    Timed(Duration),
+    Timed {
+        min_runtime: Option<Duration>,
+        max_runtime: Option<Duration>,
+    },
 }
 
 /// Given a `config` object with a factory address, a caller address, a keccak-256 hash
@@ -52,11 +55,18 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
         println!("Preparing OpenCL Miner...",);
     }
 
-    if let Some(min_runtime_secs) = config.min_runtime_secs {
+    if config.min_runtime_secs.is_some() || config.max_runtime_secs.is_some() {
         let abi = config.abi;
+        let target_zeros = config.zeros;
+        let min_runtime = config.min_runtime_secs.map(Duration::from_secs);
+        let max_runtime = config.max_runtime_secs.map(Duration::from_secs);
+
         let outcome = mine_once(
             config,
-            MiningStop::Timed(Duration::from_secs(min_runtime_secs)),
+            MiningStop::Timed {
+                min_runtime,
+                max_runtime,
+            },
         )?;
         if let Some(outcome) = outcome {
             if abi {
@@ -70,6 +80,11 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
                     HumanDuration(outcome.runtime),
                 );
             }
+            if outcome.score < target_zeros {
+                std::process::exit(2);
+            }
+        } else {
+            std::process::exit(2);
         }
         return Ok(());
     }
@@ -243,14 +258,14 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
 
             if config.abi {
                 print_abi_encoded_result(&solution_message[21..53], address.as_slice(), zero_bytes);
-                if config.once {
+                if config.one {
                     return Ok(());
                 }
             }
 
             found_list.push(output);
 
-            if config.once {
+            if config.one {
                 return Ok(());
             }
         }
@@ -346,7 +361,11 @@ pub fn mine_once(config: AppConfig, stop: MiningStop) -> Result<Option<MiningOut
     let program_queue = ProQue::new(context, queue, program, Some(worksize));
 
     let mut rng = rand::rng();
-    let mut next_zeros = config.zeros;
+    let mut next_zeros = if config.max_runtime_secs.is_some() {
+        0
+    } else {
+        config.zeros
+    };
     let mut best_outcome = None;
 
     let mut salt = FixedBytes::<4>::random();
@@ -406,21 +425,25 @@ pub fn mine_once(config: AppConfig, stop: MiningStop) -> Result<Option<MiningOut
                 break;
             }
 
-            if let MiningStop::Timed(max_runtime) = stop
-                && start.elapsed() >= max_runtime
-            {
-                if pending_batches > 0 {
-                    solutions_buffer
-                        .read(&mut solutions)
-                        .enq()
-                        .wrap_err("failed to read OpenCL solutions")?;
+            if let MiningStop::Timed { min_runtime, max_runtime } = stop {
+                let elapsed = start.elapsed();
+                let past_min = min_runtime.is_none_or(|min| elapsed >= min);
+                let past_max = max_runtime.is_some_and(|max| elapsed >= max);
 
-                    if solutions[0] != 0 {
-                        break;
+                if (past_min && best_outcome.is_some()) || past_max {
+                    if pending_batches > 0 {
+                        solutions_buffer
+                            .read(&mut solutions)
+                            .enq()
+                            .wrap_err("failed to read OpenCL solutions")?;
+
+                        if solutions[0] != 0 {
+                            break;
+                        }
                     }
-                }
 
-                return Ok(best_outcome);
+                    return Ok(best_outcome);
+                }
             }
 
             nonce[0] += 1;
@@ -438,7 +461,7 @@ pub fn mine_once(config: AppConfig, stop: MiningStop) -> Result<Option<MiningOut
 
             match stop {
                 MiningStop::FirstMatch => return Ok(Some(outcome)),
-                MiningStop::Timed(max_runtime) => {
+                MiningStop::Timed { min_runtime, max_runtime } => {
                     if best_outcome
                         .as_ref()
                         .is_none_or(|best: &MiningOutcome| outcome.score > best.score)
@@ -450,7 +473,11 @@ pub fn mine_once(config: AppConfig, stop: MiningStop) -> Result<Option<MiningOut
                         best_outcome = Some(outcome);
                     }
 
-                    if start.elapsed() >= max_runtime {
+                    let elapsed = start.elapsed();
+                    let past_min = min_runtime.is_none_or(|min| elapsed >= min);
+                    let past_max = max_runtime.is_some_and(|max| elapsed >= max);
+
+                    if (past_min && best_outcome.is_some()) || past_max {
                         return Ok(best_outcome);
                     }
                 }

@@ -428,15 +428,19 @@ impl NormalizedMineRequest {
             codehash: decode_fixed(&self.codehash, "codehash")?,
             worksize: self.worksize,
             zeros: self.zeros,
-            once: true,
+            one: true,
             abi: false,
             min_runtime_secs: None,
+            max_runtime_secs: None,
         })
     }
 
     fn stop_mode(&self) -> MiningStop {
         self.min_runtime_secs
-            .map(|secs| MiningStop::Timed(std::time::Duration::from_secs(secs)))
+            .map(|secs| MiningStop::Timed {
+                min_runtime: Some(std::time::Duration::from_secs(secs)),
+                max_runtime: None,
+            })
             .unwrap_or(MiningStop::FirstMatch)
     }
 }
