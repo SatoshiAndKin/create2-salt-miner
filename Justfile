@@ -3,6 +3,20 @@ set dotenv-load
 windows-target := "x86_64-pc-windows-gnu"
 portable-rustflags := "-C target-cpu=x86-64"
 
+fmt:
+    cargo fmt --all -- --check
+
+clippy:
+    cargo clippy --all-targets --all-features -- -D warnings
+
+test:
+    cargo test --all-features
+
+eta:
+    cargo test eta
+
+validate: fmt clippy test eta
+
 windows:
     #!/usr/bin/env bash
     set -euo pipefail

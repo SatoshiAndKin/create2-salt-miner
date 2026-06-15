@@ -4,7 +4,7 @@ Nickname: `salty`
 
 An _extremely_ fast miner for finding salts that create gas-efficient and vanity Ethereum addresses via `CREATE2`.
 
-Salty only searches for results better than what is already found. For example, if a salt is found that results in an address with 3 leading zero bytes, the next salt will only be displayed if it results in an address with 4 leading zero bytes. This improves performance by reducing the number of times the kernel needs to communicate with the host.
+Salty only searches for results better than what is already found. For example, if a salt is found that results in an address with 3 zero bytes anywhere in the address, the next salt will only be displayed if it results in an address with at least 4 zero bytes anywhere. This improves performance by reducing the number of times the kernel needs to communicate with the host.
 
 Salty can run for a really long time and will keep finding better salts. It is recommended to leave it running for a few hours if you're looking to find a salt that results in an efficient address.
 
