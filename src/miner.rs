@@ -43,7 +43,7 @@ pub enum MiningStop {
 ///
 /// This method only searches for results better than what is already found. For example,
 /// if a salt is found that results in an address with 3 zero bytes, the next salt
-/// will only be displayed if it results in an address with 4 leading zero bytes.
+/// will only be displayed if it results in an address with at least 4 zero bytes anywhere.
 ///
 /// This method is highly experimental and could certainly use further optimization.
 /// Contributions are welcome as always!
