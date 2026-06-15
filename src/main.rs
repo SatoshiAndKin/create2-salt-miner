@@ -17,6 +17,9 @@ pub use display::Display;
 pub use miner::start_miner;
 
 pub const DEFAULT_FACTORY: &str = "0x0000000000FFe8B47B3e2130213B802212439497";
+const DEFAULT_BENCH_CALLER: &str = "0x0000000000000000000000000000000000000000";
+const DEFAULT_BENCH_CODEHASH: &str =
+    "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107";
 
 #[derive(Parser, Debug, Serialize, Deserialize)]
 struct MineArgs {
@@ -194,30 +197,7 @@ async fn main() -> Result<()> {
                 .extract()
                 .wrap_err("failed to load configuration")?;
 
-            let app_config = AppConfig {
-                factory: decode_fixed(
-                    &unwrapped
-                        .factory
-                        .unwrap_or_else(|| DEFAULT_FACTORY.to_owned()),
-                    "factory",
-                )?,
-                caller: decode_fixed(
-                    &unwrapped
-                        .caller
-                        .ok_or_eyre("missing required caller address")?,
-                    "caller",
-                )?,
-                codehash: decode_fixed(
-                    &unwrapped
-                        .codehash
-                        .ok_or_eyre("missing required initcode hash")?,
-                    "codehash",
-                )?,
-                worksize: unwrapped.worksize.unwrap_or(0x4400000_u32),
-                zeros: 21,
-                once: false,
-                abi: true,
-            };
+            let app_config = build_bench_app_config(&unwrapped)?;
 
             let attempts_per_sec =
                 miner::benchmark_miner(app_config, unwrapped.warmup_batches, unwrapped.batches)?;
@@ -243,9 +223,85 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+fn build_bench_app_config(args: &BenchArgs) -> Result<AppConfig> {
+    Ok(AppConfig {
+        factory: decode_fixed(
+            args.factory.as_deref().unwrap_or(DEFAULT_FACTORY),
+            "factory",
+        )?,
+        caller: decode_fixed(
+            args.caller.as_deref().unwrap_or(DEFAULT_BENCH_CALLER),
+            "caller",
+        )?,
+        codehash: decode_fixed(
+            args.codehash.as_deref().unwrap_or(DEFAULT_BENCH_CODEHASH),
+            "codehash",
+        )?,
+        worksize: args.worksize.unwrap_or(0x4400000_u32),
+        zeros: 21,
+        once: false,
+        abi: true,
+    })
+}
+
 pub fn decode_fixed<const N: usize>(value: &str, field: &str) -> Result<[u8; N]> {
     let bytes = hex::decode(value).wrap_err_with(|| format!("invalid {field} hex"))?;
     bytes
         .try_into()
         .map_err(|bytes: Vec<u8>| eyre!("{field} must be {N} bytes, got {}", bytes.len()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bench_config_has_built_in_defaults() -> Result<()> {
+        let args = BenchArgs {
+            factory: None,
+            caller: None,
+            codehash: None,
+            worksize: None,
+            batches: 20,
+            warmup_batches: 3,
+        };
+
+        let config = build_bench_app_config(&args)?;
+
+        assert_eq!(config.factory, decode_fixed(DEFAULT_FACTORY, "factory")?);
+        assert_eq!(config.caller, [0_u8; 20]);
+        assert_eq!(
+            config.codehash,
+            decode_fixed(DEFAULT_BENCH_CODEHASH, "codehash")?
+        );
+        assert_eq!(config.worksize, 0x4400000_u32);
+        assert_eq!(config.zeros, 21);
+        assert!(!config.once);
+        assert!(config.abi);
+
+        Ok(())
+    }
+
+    #[test]
+    fn bench_config_honors_explicit_args() -> Result<()> {
+        let args = BenchArgs {
+            factory: Some("0x1111111111111111111111111111111111111111".to_owned()),
+            caller: Some("0x2222222222222222222222222222222222222222".to_owned()),
+            codehash: Some(
+                "0x3333333333333333333333333333333333333333333333333333333333333333".to_owned(),
+            ),
+            worksize: Some(128),
+            batches: 20,
+            warmup_batches: 3,
+        };
+
+        let config = build_bench_app_config(&args)?;
+
+        assert_eq!(config.factory, [0x11_u8; 20]);
+        assert_eq!(config.caller, [0x22_u8; 20]);
+        assert_eq!(config.codehash, [0x33_u8; 32]);
+        assert_eq!(config.worksize, 128);
+
+        Ok(())
+    }
 }
