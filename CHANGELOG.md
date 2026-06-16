@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/SatoshiAndKin/create2-salt-miner/compare/salty-v0.2.0...salty-v0.3.0) (2026-06-16)
+
+
+### Features
+
+* add remote server mining config ([2b3bbfe](https://github.com/SatoshiAndKin/create2-salt-miner/commit/2b3bbfe6570d36eaed69e4c4188416f3ad34608a))
+
+
+### Bug Fixes
+
+* allow bench defaults without config ([29f1b4e](https://github.com/SatoshiAndKin/create2-salt-miner/commit/29f1b4ed482169a04979b8ebe049a77e16065151))
+
 ## [0.2.0](https://github.com/SatoshiAndKin/create2-salt-miner/compare/salty-v0.1.0...salty-v0.2.0) (2026-05-16)
 
 
