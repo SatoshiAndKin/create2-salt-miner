@@ -219,7 +219,7 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
             );
 
             if config.abi {
-                print_abi_encoded_result(&solution_message[21..53], address, zero_bytes);
+                print_abi_encoded_result(&solution_message[21..53], address.as_slice(), zero_bytes);
                 if config.once {
                     return Ok(());
                 }
@@ -476,11 +476,11 @@ fn mining_outcome(
     })
 }
 
-fn print_abi_encoded_result(salt: &[u8], address: &Address, score: usize) {
+pub fn print_abi_encoded_result(salt: &[u8], address: &[u8], score: usize) {
     let mut encoded = Vec::with_capacity(96);
     encoded.extend_from_slice(salt);
     encoded.extend_from_slice(&[0_u8; 12]);
-    encoded.extend_from_slice(address.as_slice());
+    encoded.extend_from_slice(address);
     encoded.extend_from_slice(&[0_u8; 16]);
     encoded.extend_from_slice(&(score as u128).to_be_bytes());
     println!("0x{}", hex::encode(encoded));
