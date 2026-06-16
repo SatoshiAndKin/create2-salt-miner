@@ -57,6 +57,11 @@ struct MineArgs {
     #[arg(long)]
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     abi: bool,
+
+    /// Remote HTTP mining server base URL
+    #[arg(long)]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    remote_server: Option<String>,
 }
 
 #[derive(Parser, Debug, Serialize, Deserialize)]
@@ -154,27 +159,41 @@ async fn main() -> Result<()> {
                 println!("{:#?}", unwrapped);
             }
 
+            let factory = unwrapped
+                .factory
+                .unwrap_or_else(|| DEFAULT_FACTORY.to_owned());
+            let caller = unwrapped
+                .caller
+                .ok_or_eyre("missing required caller address")?;
+            let codehash = unwrapped
+                .codehash
+                .ok_or_eyre("missing required initcode hash")?;
+            let worksize = unwrapped.worksize.unwrap_or(0x4400000_u32);
+            let zeros = unwrapped.zeros.unwrap_or(6_usize);
+
+            if let Some(remote_server) = unwrapped.remote_server {
+                let response = server::mine_remote(
+                    &remote_server,
+                    server::MineRequest {
+                        factory: Some(factory),
+                        caller,
+                        codehash,
+                        worksize: Some(worksize),
+                        zeros: Some(zeros),
+                        max_runtime_secs: None,
+                    },
+                )
+                .await?;
+                print_remote_mine_response(response, unwrapped.abi)?;
+                return Ok(());
+            }
+
             let app_config = AppConfig {
-                factory: decode_fixed(
-                    &unwrapped
-                        .factory
-                        .unwrap_or_else(|| DEFAULT_FACTORY.to_owned()),
-                    "factory",
-                )?,
-                caller: decode_fixed(
-                    &unwrapped
-                        .caller
-                        .ok_or_eyre("missing required caller address")?,
-                    "caller",
-                )?,
-                codehash: decode_fixed(
-                    &unwrapped
-                        .codehash
-                        .ok_or_eyre("missing required initcode hash")?,
-                    "codehash",
-                )?,
-                worksize: unwrapped.worksize.unwrap_or(0x4400000_u32),
-                zeros: unwrapped.zeros.unwrap_or(6_usize),
+                factory: decode_fixed(&factory, "factory")?,
+                caller: decode_fixed(&caller, "caller")?,
+                codehash: decode_fixed(&codehash, "codehash")?,
+                worksize,
+                zeros,
                 once: unwrapped.once,
                 abi: unwrapped.abi,
             };
@@ -249,6 +268,37 @@ pub fn decode_fixed<const N: usize>(value: &str, field: &str) -> Result<[u8; N]>
     bytes
         .try_into()
         .map_err(|bytes: Vec<u8>| eyre!("{field} must be {N} bytes, got {}", bytes.len()))
+}
+
+fn print_remote_mine_response(response: server::MineResponse, abi: bool) -> Result<()> {
+    if abi {
+        let salt = decode_fixed::<32>(
+            response
+                .salt
+                .as_deref()
+                .ok_or_eyre("remote server did not return a salt")?,
+            "salt",
+        )?;
+        let address = decode_fixed::<20>(
+            response
+                .address
+                .as_deref()
+                .ok_or_eyre("remote server did not return an address")?,
+            "address",
+        )?;
+        let score = response
+            .score
+            .ok_or_eyre("remote server did not return a score")?;
+        miner::print_abi_encoded_result(&salt, &address, score);
+    } else {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&response)
+                .wrap_err("failed to serialize remote mining response")?
+        );
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

@@ -20,6 +20,7 @@
   tokio = { version = "1.48.0", features = [ "macros", "net", "rt-multi-thread" ] }
   utoipa = { version = "5.4.0", features = [ "axum_extras" ] }
   utoipa-swagger-ui = { version = "9.0.2", features = [ "axum" ] }
+  url = "2.5.8"
 
 [features]
   default = [  ]

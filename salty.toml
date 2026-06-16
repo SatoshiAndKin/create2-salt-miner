@@ -6,3 +6,6 @@ codehash = "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107"
 # Extra Parameters
 worksize = 0x4400000
 zeros = 6
+
+# Remote Server
+# remote_server = "http://127.0.0.1:3000"

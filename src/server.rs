@@ -1,4 +1,5 @@
 use std::{
+    io::{Read, Write},
     net::SocketAddr,
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -13,10 +14,11 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use eyre::{Context, Result, eyre};
+use eyre::{Context, OptionExt, Result, eyre};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use tokio::{net::TcpListener, sync::Notify};
+use url::{Host, Url};
 use utoipa::{OpenApi, ToSchema};
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -43,7 +45,7 @@ struct HealthResponse {
     status: &'static str,
 }
 
-#[derive(Debug, Clone, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct MineRequest {
     #[schema(example = "0x0000000000FFe8B47B3e2130213B802212439497")]
     pub factory: Option<String>,
@@ -76,7 +78,7 @@ pub struct MineResponse {
     pub runtime_ms: u128,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 struct ErrorResponse {
     error: String,
 }
@@ -115,6 +117,130 @@ pub async fn start_server(config: ServerConfig) -> Result<()> {
         .wrap_err_with(|| format!("failed to bind {addr}"))?;
     println!("Listening on http://{addr}");
     axum::serve(listener, app).await.wrap_err("server failed")
+}
+
+pub async fn mine_remote(remote_server: &str, request: MineRequest) -> Result<MineResponse> {
+    let remote_server = remote_server.to_owned();
+    tokio::task::spawn_blocking(move || mine_remote_blocking(&remote_server, &request))
+        .await
+        .wrap_err("remote mining request failed to join")?
+}
+
+fn mine_remote_blocking(remote_server: &str, request: &MineRequest) -> Result<MineResponse> {
+    let endpoint = remote_mine_endpoint(remote_server)?;
+    let body = serde_json::to_vec(request).wrap_err("failed to serialize mining request")?;
+    let (connection_addr, host_header) = remote_connection_parts(&endpoint)?;
+
+    let mut stream = std::net::TcpStream::connect(&connection_addr)
+        .wrap_err_with(|| format!("failed to connect to remote mining server at {endpoint}"))?;
+    let request_head = format!(
+        "POST {} HTTP/1.1\r\nHost: {}\r\nContent-Type: application/json\r\nAccept: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        endpoint.path(),
+        host_header,
+        body.len()
+    );
+
+    stream
+        .write_all(request_head.as_bytes())
+        .wrap_err("failed to write remote mining request headers")?;
+    stream
+        .write_all(&body)
+        .wrap_err("failed to write remote mining request body")?;
+    stream
+        .flush()
+        .wrap_err("failed to flush remote mining request")?;
+
+    let mut response = Vec::new();
+    stream
+        .read_to_end(&mut response)
+        .wrap_err("failed to read remote mining response")?;
+    let (status, body) = parse_http_response(&response)?;
+
+    if !(200..300).contains(&status) {
+        let message = serde_json::from_slice::<ErrorResponse>(&body)
+            .map(|response| response.error)
+            .or_else(|_| String::from_utf8(body.clone()))
+            .unwrap_or_else(|_| "remote server returned an invalid error body".to_owned());
+        return Err(eyre!(
+            "remote mining server returned HTTP {status}: {message}"
+        ));
+    }
+
+    serde_json::from_slice(&body).wrap_err("failed to deserialize remote mining response")
+}
+
+fn remote_mine_endpoint(remote_server: &str) -> Result<Url> {
+    let mut endpoint =
+        Url::parse(remote_server).wrap_err("failed to parse remote_server as a URL")?;
+
+    if endpoint.scheme() != "http" {
+        return Err(eyre!(
+            "remote_server must use http:// because the built-in mining server does not serve TLS"
+        ));
+    }
+
+    endpoint
+        .host()
+        .ok_or_eyre("remote_server URL must include a host")?;
+    endpoint.set_query(None);
+    endpoint.set_fragment(None);
+
+    let path = endpoint.path().trim_end_matches('/');
+    let mine_path = if path.is_empty() {
+        "/mine".to_owned()
+    } else if path.ends_with("/mine") {
+        path.to_owned()
+    } else {
+        format!("{path}/mine")
+    };
+    endpoint.set_path(&mine_path);
+
+    Ok(endpoint)
+}
+
+fn remote_connection_parts(endpoint: &Url) -> Result<(String, String)> {
+    let port = endpoint
+        .port_or_known_default()
+        .ok_or_eyre("remote_server URL must include a port")?;
+    let host = endpoint
+        .host()
+        .ok_or_eyre("remote_server URL must include a host")?;
+
+    let (connection_addr, host_header_base) = match host {
+        Host::Domain(domain) => (format!("{domain}:{port}"), domain.to_owned()),
+        Host::Ipv4(address) => (format!("{address}:{port}"), address.to_string()),
+        Host::Ipv6(address) => (format!("[{address}]:{port}"), format!("[{address}]")),
+    };
+    let host_header = if endpoint.port().is_some() {
+        format!("{host_header_base}:{port}")
+    } else {
+        host_header_base
+    };
+
+    Ok((connection_addr, host_header))
+}
+
+fn parse_http_response(response: &[u8]) -> Result<(u16, Vec<u8>)> {
+    let header_end = response
+        .windows(4)
+        .position(|window| window == b"\r\n\r\n")
+        .ok_or_eyre("remote server returned an invalid HTTP response")?;
+    let header = std::str::from_utf8(&response[..header_end])
+        .wrap_err("remote server returned non-UTF-8 HTTP headers")?;
+    let body = response[(header_end + 4)..].to_vec();
+
+    let mut lines = header.lines();
+    let status_line = lines
+        .next()
+        .ok_or_eyre("remote server returned an empty HTTP response")?;
+    let status = status_line
+        .split_whitespace()
+        .nth(1)
+        .ok_or_eyre("remote server returned an invalid HTTP status line")?
+        .parse()
+        .wrap_err("remote server returned a non-numeric HTTP status")?;
+
+    Ok((status, body))
 }
 
 #[utoipa::path(
@@ -550,4 +676,35 @@ fn unix_timestamp() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |duration| duration.as_secs() as i64)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn remote_mine_endpoint_appends_mine_to_base_url() {
+        let endpoint = remote_mine_endpoint("http://127.0.0.1:3000").unwrap();
+        assert_eq!(endpoint.as_str(), "http://127.0.0.1:3000/mine");
+    }
+
+    #[test]
+    fn remote_mine_endpoint_preserves_existing_base_path() {
+        let endpoint = remote_mine_endpoint("http://example.com/salty/").unwrap();
+        assert_eq!(endpoint.as_str(), "http://example.com/salty/mine");
+    }
+
+    #[test]
+    fn remote_mine_endpoint_rejects_https() {
+        let error = remote_mine_endpoint("https://example.com").unwrap_err();
+        assert!(error.to_string().contains("must use http://"));
+    }
+
+    #[test]
+    fn parse_http_response_returns_status_and_body() {
+        let (status, body) =
+            parse_http_response(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}").unwrap();
+        assert_eq!(status, 200);
+        assert_eq!(body, b"{}");
+    }
 }

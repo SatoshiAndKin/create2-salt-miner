@@ -38,6 +38,18 @@ Alternatively, you can create a file named `salty.toml` in root with the same pa
 cargo run --release -- mine
 ```
 
+To run the miner against a remote Salty HTTP server, start the server on the
+remote machine and set `remote_server` in `salty.toml` or pass it on the CLI.
+
+```toml
+remote_server = "http://127.0.0.1:3000"
+```
+
+```bash
+cargo run --release -- serve --host 0.0.0.0 --port 3000
+cargo run --release -- mine --remote-server http://127.0.0.1:3000
+```
+
 Additionally, Salty includes a `list` command to display all available OpenCL platforms on the device.
 
 ```bash
@@ -68,6 +80,7 @@ The following parameters are available when using the `mine` command.
 | `codehash` | Keccak-256 hash of the contract initialization code                  | (required parameter)                         |
 | `worksize` | Work size per batch                                                  | `0x4400000`                                  |
 | `zeros`    | Minimum zero bytes to look for in the created contract (no stop)     | `1`                                          |
+| `remote_server` | Remote Salty HTTP server base URL used by `mine` instead of local OpenCL mining | unset                              |
 
 ## Performance Benchmarks
 
