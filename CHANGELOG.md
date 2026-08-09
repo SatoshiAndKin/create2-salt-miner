@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.0](https://github.com/SatoshiAndKin/create2-salt-miner/compare/salty-v0.2.0...salty-v0.3.0) (2026-08-09)
+
+
+### Features
+
+* add cargo-pgo and gated BOLT build targets ([cda5fe9](https://github.com/SatoshiAndKin/create2-salt-miner/commit/cda5fe9b8eb412b046ef97ee0445f72152d49c00))
+* add max-runtime-secs and rename once to one ([36705db](https://github.com/SatoshiAndKin/create2-salt-miner/commit/36705db57b908a6362a8fb0ce99e5a5cb994da19))
+* add minimum-runtime gated best-result mining exits ([c20e133](https://github.com/SatoshiAndKin/create2-salt-miner/commit/c20e1338dc3b644e90fb1ba3e21742f6ec248aba))
+* add remote server mining config ([2b3bbfe](https://github.com/SatoshiAndKin/create2-salt-miner/commit/2b3bbfe6570d36eaed69e4c4188416f3ad34608a))
+* improve mining controls and optimized releases ([4c8f186](https://github.com/SatoshiAndKin/create2-salt-miner/commit/4c8f1862fb966259ac3a2953c73322140afd0c5e))
+
+
+### Bug Fixes
+
+* allow bench defaults without config ([29f1b4e](https://github.com/SatoshiAndKin/create2-salt-miner/commit/29f1b4ed482169a04979b8ebe049a77e16065151))
+* use Metal mining on macOS ([bdbea28](https://github.com/SatoshiAndKin/create2-salt-miner/commit/bdbea2835e69c470e568b002a35f21c49ffb80c7))
+
 ## [0.2.0](https://github.com/SatoshiAndKin/create2-salt-miner/compare/salty-v0.1.0...salty-v0.2.0) (2026-05-16)
 
 
