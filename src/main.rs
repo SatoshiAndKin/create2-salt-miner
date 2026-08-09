@@ -127,11 +127,11 @@ struct ServeArgs {
 enum Commands {
     /// Start Create2 Salt Miner
     Mine(MineArgs),
-    /// Benchmark OpenCL mining throughput
+    /// Benchmark accelerator mining throughput
     Bench(BenchArgs),
     /// Start remote HTTP mining server
     Serve(ServeArgs),
-    /// List available OpenCL Platforms (& Devices), including default
+    /// List available accelerator devices and the selected device
     List {},
 }
 

@@ -1,17 +1,23 @@
 use alloy_primitives::{Address, FixedBytes, Keccak256, hex};
 use eyre::{Result, WrapErr};
+#[cfg(not(target_os = "macos"))]
 use indicatif::HumanDuration;
+#[cfg(not(target_os = "macos"))]
 use ocl::{Buffer, Context, Device, MemFlags, Platform, ProQue, Program, Queue};
+#[cfg(not(target_os = "macos"))]
 use rand::RngExt;
 use std::fmt::Write;
 use std::time::{Duration, Instant};
 
 use crate::{AppConfig, Display};
 
+#[cfg(target_os = "macos")]
+pub(crate) mod metal;
+
 static KERNEL_SRC: &str = include_str!("./kernels/keccak256.cl");
 
 const CONTROL_CHARACTER: u8 = 0xff;
-const READBACK_INTERVAL_BATCHES: u32 = 8;
+pub(super) const READBACK_INTERVAL_BATCHES: u32 = 8;
 
 #[derive(Debug, Clone)]
 pub struct MiningOutcome {
@@ -31,8 +37,8 @@ pub enum MiningStop {
 }
 
 /// Given a `config` object with a factory address, a caller address, a keccak-256 hash
-/// of the contract initialization code, search for salts using OpenCL that will enable
-/// the factory contract to deploy a contract to a gas-efficient address via CREATE2.
+/// of the contract initialization code, search for salts using the native accelerator. The salts
+/// enable the factory contract to deploy a contract to a gas-efficient address via CREATE2.
 ///
 /// The 32-byte salt is constructed as follows:
 ///   - the 20-byte calling address (to prevent frontrunning)
@@ -50,7 +56,19 @@ pub enum MiningStop {
 ///
 /// This method is highly experimental and could certainly use further optimization.
 /// Contributions are welcome as always!
-pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()> {
+pub fn start_miner(config: AppConfig, display: Option<Display>) -> Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        metal::start_miner(config, display)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        start_opencl_miner(config, display)
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn start_opencl_miner(config: AppConfig, mut display: Option<Display>) -> Result<()> {
     if !config.abi {
         println!("Preparing OpenCL Miner...",);
     }
@@ -61,7 +79,7 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
         let min_runtime = config.min_runtime_secs.map(Duration::from_secs);
         let max_runtime = config.max_runtime_secs.map(Duration::from_secs);
 
-        let outcome = mine_once(
+        let outcome = mine_once_opencl(
             config,
             MiningStop::Timed {
                 min_runtime,
@@ -70,7 +88,7 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
         )?;
         if let Some(outcome) = outcome {
             if abi {
-                print_abi_encoded_result(&outcome.salt, &outcome.address, outcome.score);
+                print_abi_encoded_result(&outcome.salt, outcome.address.as_slice(), outcome.score);
             } else {
                 println!(
                     "0x{} => {} (Score: {}, Runtime: {})",
@@ -273,6 +291,18 @@ pub fn start_miner(config: AppConfig, mut display: Option<Display>) -> Result<()
 }
 
 pub fn benchmark_miner(config: AppConfig, warmup_batches: u64, batches: u64) -> Result<u128> {
+    #[cfg(target_os = "macos")]
+    {
+        metal::benchmark_miner(&config, warmup_batches, batches)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        benchmark_opencl_miner(config, warmup_batches, batches)
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn benchmark_opencl_miner(config: AppConfig, warmup_batches: u64, batches: u64) -> Result<u128> {
     let worksize = config.worksize;
     let platform = Platform::new(
         ocl::core::default_platform().wrap_err("failed to get default OpenCL platform")?,
@@ -337,6 +367,18 @@ pub fn benchmark_miner(config: AppConfig, warmup_batches: u64, batches: u64) -> 
 }
 
 pub fn mine_once(config: AppConfig, stop: MiningStop) -> Result<Option<MiningOutcome>> {
+    #[cfg(target_os = "macos")]
+    {
+        metal::mine_once(config, stop)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        mine_once_opencl(config, stop)
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn mine_once_opencl(config: AppConfig, stop: MiningStop) -> Result<Option<MiningOutcome>> {
     let start = Instant::now();
     let worksize = config.worksize;
 
@@ -425,7 +467,11 @@ pub fn mine_once(config: AppConfig, stop: MiningStop) -> Result<Option<MiningOut
                 break;
             }
 
-            if let MiningStop::Timed { min_runtime, max_runtime } = stop {
+            if let MiningStop::Timed {
+                min_runtime,
+                max_runtime,
+            } = stop
+            {
                 let elapsed = start.elapsed();
                 let past_min = min_runtime.is_none_or(|min| elapsed >= min);
                 let past_max = max_runtime.is_some_and(|max| elapsed >= max);
@@ -461,7 +507,10 @@ pub fn mine_once(config: AppConfig, stop: MiningStop) -> Result<Option<MiningOut
 
             match stop {
                 MiningStop::FirstMatch => return Ok(Some(outcome)),
-                MiningStop::Timed { min_runtime, max_runtime } => {
+                MiningStop::Timed {
+                    min_runtime,
+                    max_runtime,
+                } => {
                     if best_outcome
                         .as_ref()
                         .is_none_or(|best: &MiningOutcome| outcome.score > best.score)
@@ -486,7 +535,7 @@ pub fn mine_once(config: AppConfig, stop: MiningStop) -> Result<Option<MiningOut
     }
 }
 
-fn mining_outcome(
+pub(super) fn mining_outcome(
     config: &AppConfig,
     salt: &FixedBytes<4>,
     solution: u64,
@@ -526,7 +575,7 @@ fn mining_outcome(
     })
 }
 
-pub fn print_abi_encoded_result(salt: &[u8], address: &[u8], score: usize) {
+pub(super) fn print_abi_encoded_result(salt: &[u8], address: &[u8], score: usize) {
     let mut encoded = Vec::with_capacity(96);
     encoded.extend_from_slice(salt);
     encoded.extend_from_slice(&[0_u8; 12]);
@@ -536,8 +585,8 @@ pub fn print_abi_encoded_result(salt: &[u8], address: &[u8], score: usize) {
     println!("0x{}", hex::encode(encoded));
 }
 
-fn mk_kernel_src(config: &AppConfig) -> String {
-    let mut src = String::with_capacity(2048 + KERNEL_SRC.len());
+pub(super) fn mk_kernel_defines(config: &AppConfig) -> String {
+    let mut src = String::with_capacity(2048);
 
     let factory = config.factory.iter();
     let caller = config.caller.iter();
@@ -547,6 +596,13 @@ fn mk_kernel_src(config: &AppConfig) -> String {
     for (i, x) in factory.chain(caller).enumerate().chain(hash) {
         let _ = writeln!(src, "#define S_{} {}u", i + 1, x);
     }
+
+    src
+}
+
+#[cfg(not(target_os = "macos"))]
+fn mk_kernel_src(config: &AppConfig) -> String {
+    let mut src = mk_kernel_defines(config);
 
     src.push_str(KERNEL_SRC);
 
