@@ -1,26 +1,28 @@
 [package]
   authors = [ "Akshat Mittal <hi@akshatmittal.com>" ]
   edition = "2024"
+  license = "MIT OR Apache-2.0"
   name = "salty"
-  version = "0.2.0"
+  rust-version = "1.90"
+  version = "0.3.0"
 
 [dependencies]
-  alloy-primitives = { version = "1.5.7", features = [ "rand" ] }
-  axum = "0.8.7"
-  clap = { version = "4.6.1", features = [ "derive" ] }
-  console = "0.16.3"
+  alloy-primitives = { version = "1.6.1", default-features = false, features = [ "rand", "std" ] }
+  axum = { version = "0.8.9", default-features = false, features = [ "http1", "json", "tokio" ] }
+  clap = { version = "4.6.6", default-features = false, features = [ "derive", "error-context", "help", "std", "usage" ] }
+  console = { version = "0.16.4", default-features = false, features = [ "std" ] }
   eyre = "0.6.12"
-  figment = { version = "0.10.19", features = [ "toml" ] }
-  indicatif = "0.18.4"
-  ocl = "0.19.7"
-  rand = "0.10.1"
-  rusqlite = { version = "0.37.0", features = [ "bundled" ] }
-  serde = { version = "1.0.228", features = [ "derive" ] }
-  serde_json = "1.0.145"
-  tokio = { version = "1.48.0", features = [ "macros", "net", "rt-multi-thread" ] }
-  utoipa = { version = "5.4.0", features = [ "axum_extras" ] }
-  utoipa-swagger-ui = { version = "9.0.2", features = [ "axum" ] }
-  url = "2.5.8"
+  figment = { version = "0.10.19", default-features = false, features = [ "toml" ] }
+  indicatif = { version = "0.18.6", default-features = false, features = [ "unicode-width" ] }
+  ocl = { version = "0.19.7", default-features = false, features = [ "opencl_version_1_1", "opencl_version_1_2" ] }
+  rand = { version = "0.10.2", default-features = false, features = [ "thread_rng" ] }
+  rusqlite = { version = "0.40.2", default-features = false, features = [ "bundled" ] }
+  serde = { version = "1.0.229", default-features = false, features = [ "derive", "std" ] }
+  serde_json = { version = "1.0.151", default-features = false, features = [ "std" ] }
+  tokio = { version = "1.53.1", default-features = false, features = [ "macros", "net", "rt-multi-thread" ] }
+  utoipa = { version = "5.5.0", default-features = false, features = [ "macros" ] }
+  utoipa-swagger-ui = { version = "9.0.2", default-features = false, features = [ "axum", "vendored" ] }
+  url = { version = "2.5.8", default-features = false, features = [ "std" ] }
 
 [features]
   default = [  ]
@@ -33,3 +35,7 @@
   codegen-units = 1
   debug = false
   incremental = false
+
+[target.'cfg(target_os = "macos")'.dependencies]
+metal = { version = "0.33.0", default-features = false, features = [ "link" ] }
+objc = "0.2.7"

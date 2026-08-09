@@ -30,6 +30,14 @@
 
 /******** Keccak-f[1600] (for finding efficient Ethereum addresses) ********/
 
+#if defined(METAL_BACKEND)
+#include <metal_stdlib>
+using namespace metal;
+#define THREAD thread
+#else
+#define THREAD
+#endif
+
 #define OPENCL_PLATFORM_UNKNOWN 0
 #define OPENCL_PLATFORM_AMD 2
 
@@ -142,7 +150,7 @@ static inline ulong rol(const ulong x, const uint s) {
   chi();                                                                       \
   iota(x);
 
-static inline void keccakf(ulong *a) {
+static inline void keccakf(THREAD ulong *a) {
   ulong b[5];
   ulong t;
 
@@ -172,7 +180,7 @@ static inline void keccakf(ulong *a) {
 
   // iteration 24 (partial)
 
-#define o ((uint *)(a))
+#define o ((THREAD uint *)(a))
   // Theta (partial)
   b[0] = a[0] ^ a[5] ^ a[10] ^ a[15] ^ a[20];
   b[1] = a[1] ^ a[6] ^ a[11] ^ a[16] ^ a[21];
@@ -201,7 +209,8 @@ static inline void keccakf(ulong *a) {
 #undef o
 }
 
-static inline bool hasZeroBytes(uchar const *d, uint const min_zero_bytes) {
+static inline bool hasZeroBytes(THREAD uchar const *d,
+                                uint const min_zero_bytes) {
   uchar zero_bytes = 0;
 #pragma unroll
   for (uint i = 0; i < 20; ++i) {
@@ -212,14 +221,21 @@ static inline bool hasZeroBytes(uchar const *d, uint const min_zero_bytes) {
   return zero_bytes >= min_zero_bytes;
 }
 
-__kernel void hashMessage(uint const salt_tail,
-                          uint const nonce_hi,
-                          uint const min_zeros, // min zero bytes to target
+#if defined(METAL_BACKEND)
+kernel void hashMessage(constant uint &salt_tail [[buffer(0)]],
+                        constant uint &nonce_hi [[buffer(1)]],
+                        constant uint &min_zeros [[buffer(2)]],
+                        device atomic_uint *solutions [[buffer(3)]],
+                        uint global_id [[thread_position_in_grid]]) {
+#else
+__kernel void hashMessage(uint const salt_tail, uint const nonce_hi,
+                          uint const min_zeros,
                           __global volatile ulong *restrict solutions) {
+#endif
 
   ulong spongeBuffer[25];
 
-#define sponge ((uchar *)spongeBuffer)
+#define sponge ((THREAD uchar *)spongeBuffer)
 #define digest (sponge + 12)
 
   nonce_t nonce;
@@ -274,7 +290,11 @@ __kernel void hashMessage(uint const salt_tail,
   sponge[44] = salt_tail >> 24;
 
   // populate the nonce
+#if defined(METAL_BACKEND)
+  nonce.uint32_t[0] = global_id;
+#else
   nonce.uint32_t[0] = get_global_id(0);
+#endif
   nonce.uint32_t[1] = nonce_hi;
 
   // populate the body of the message with the nonce
@@ -345,6 +365,16 @@ __kernel void hashMessage(uint const salt_tail,
     // we just need to write one solution for all practical purposes,
     // since the chance of multiple solutions appearing
     // in a single workset is extremely low.
+#if defined(METAL_BACKEND)
+    if (atomic_exchange_explicit(&solutions[0], 1u, memory_order_relaxed) ==
+        0u) {
+      atomic_store_explicit(&solutions[1], nonce.uint32_t[0],
+                            memory_order_relaxed);
+      atomic_store_explicit(&solutions[2], nonce.uint32_t[1],
+                            memory_order_relaxed);
+    }
+#else
     solutions[0] = nonce.uint64_t;
+#endif
   }
 }

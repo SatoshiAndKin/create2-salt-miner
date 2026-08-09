@@ -1,10 +1,19 @@
+use eyre::Result;
+
+#[cfg(not(target_os = "macos"))]
+use eyre::OptionExt;
+#[cfg(not(target_os = "macos"))]
 use ocl::{
     Device, Platform,
     enums::{DeviceInfo, PlatformInfo},
 };
 
-use eyre::{OptionExt, Result};
+#[cfg(target_os = "macos")]
+pub fn list_devices() -> Result<()> {
+    crate::miner::metal::list_devices()
+}
 
+#[cfg(not(target_os = "macos"))]
 pub fn list_devices() -> Result<()> {
     // Information buffer
     let mut info = vec![];

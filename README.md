@@ -8,17 +8,17 @@ Salty only searches for results better than what is already found. For example, 
 
 Salty can run for a really long time and will keep finding better salts. It is recommended to leave it running for a few hours if you're looking to find a salt that results in an efficient address.
 
-Salty is written in [Rust](https://www.rust-lang.org/), uses [Alloy](https://github.com/alloy-rs/core) for Ethereum primitives and uses [OpenCL](https://www.khronos.org/opencl/) as the processing backend.
+Salty is written in [Rust](https://www.rust-lang.org/) and uses [Alloy](https://github.com/alloy-rs/core) for Ethereum primitives. It uses Metal on macOS and [OpenCL](https://www.khronos.org/opencl/) on Linux and Windows.
 
-Salty always uses OpenCL, which means it can utilize a wide variety of systems including CPUs, GPUs and supported accelerators. It is highly recommended to use GPUs for mining as they are significantly faster than CPUs. If you'd like to use CPUs, you'll need to install the OpenCL Driver for your platform. Typically, for all `x86-64` systems, [Intel's OpenCL Driver](https://software.intel.com/content/www/us/en/develop/articles/opencl-drivers.html) works best.
+On macOS, Salty uses the native Metal compute API and selects the system GPU. Apple deprecated OpenCL in macOS 10.14, and current macOS releases can expose no usable OpenCL device. Metal keeps GPU mining available on Apple silicon.
 
-Using OpenCL Platform as the backend also means you can run it across multiple GPUs as long as they are grouped in the same OpenCL Platform. By default, if your GPUs are from the same vendor, the drivers will automatically group them. Additional configuration may be required if you have GPUs from different vendors.
+On Linux and Windows, OpenCL lets Salty use CPUs, GPUs, and other supported accelerators. A GPU is usually much faster than a CPU. CPU mining requires an OpenCL driver for the processor.
 
 ## Usage
 
-Salty is currently tested on Linux, macOS and Windows. It works with CPUs, GPUs and Accelerators.
+Salty is currently tested on Linux, macOS, and Windows. It works with Metal GPUs on macOS and OpenCL devices on Linux and Windows.
 
-You'll need Rust and OpenCL SDK installed and available in `PATH`. Start by cloning the repository.
+You need Rust. Linux and Windows builds also need an OpenCL SDK. Start by cloning the repository.
 
 ```bash
 git clone git@github.com:akshatmittal/create2-salt-miner.git
@@ -50,7 +50,7 @@ cargo run --release -- serve --host 0.0.0.0 --port 3000
 cargo run --release -- mine --remote-server http://127.0.0.1:3000
 ```
 
-Additionally, Salty includes a `list` command to display all available OpenCL platforms on the device.
+The `list` command displays the available accelerator devices and the selected device.
 
 ```bash
 cargo run --release -- list
@@ -59,6 +59,7 @@ cargo run --release -- list
 ## Features
 
 - [x] Multiple Config Sources (CLI, Config File)
+- [x] Metal Backend (macOS GPU)
 - [x] OpenCL Backend (CPU, GPU, Accelerators)
 - [x] Ranking Mode (Zero Bytes)
 - [ ] Ranking Mode (Any Bytes)
@@ -81,6 +82,7 @@ The following parameters are available when using the `mine` command.
 | `worksize` | Work size per batch                                                  | `0x4400000`                                  |
 | `zeros`    | Minimum zero bytes to look for in the created contract (no stop)     | `1`                                          |
 | `remote_server` | Remote Salty HTTP server base URL used by `mine` instead of local OpenCL mining | unset                              |
+| `min_runtime_secs` | Mine for at least this many seconds, then return the best qualifying result found | (disabled) |
 
 ## Performance Benchmarks
 

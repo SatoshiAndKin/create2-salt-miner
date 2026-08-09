@@ -30,6 +30,32 @@ jobs:
         if: steps.release.outputs.pr
         run: cargo generate-lockfile
 
+      - name: Validate lockfile
+        if: steps.release.outputs.pr
+        run: cargo metadata --locked --format-version 1 > /dev/null
+
+      - name: Rust fmt check
+        if: steps.release.outputs.pr
+        run: cargo fmt --all -- --check
+
+      - name: Rust check (locked)
+        if: steps.release.outputs.pr
+        run: cargo check --locked
+
+      - name: Rust clippy (locked)
+        if: steps.release.outputs.pr
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Install cargo-deny
+        if: steps.release.outputs.pr
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+
+      - name: Run cargo-deny checks
+        if: steps.release.outputs.pr
+        run: cargo deny check
+
       - name: Commit updated lockfile
         if: steps.release.outputs.pr
         run: |
@@ -43,6 +69,8 @@ jobs:
     needs: release-please
     if: needs.release-please.outputs.release_created
     runs-on: ubuntu-latest
+    env:
+      WINDOWS_PGO_PROFDATA_PATH: ${{ github.workspace }}/.pgo/salty-windows-x86_64.profdata
     steps:
       - uses: actions/checkout@v4
         with:
@@ -63,12 +91,137 @@ jobs:
 
       - name: Build Windows release
         run: |
+          set -euo pipefail
+          if [[ ! -f "${WINDOWS_PGO_PROFDATA_PATH}" ]]; then
+            echo "::error file=${WINDOWS_PGO_PROFDATA_PATH}::Missing committed Windows PGO profile. Expected at .pgo/salty-windows-x86_64.profdata"
+            exit 1
+          fi
+          echo "Using Windows PGO profile: ${WINDOWS_PGO_PROFDATA_PATH}"
+          windows_rustflags="-C target-cpu=x86-64 -Cprofile-use=${WINDOWS_PGO_PROFDATA_PATH} -Cllvm-args=-pgo-warn-missing-function"
           CROSS_CONTAINER_OPTS="--platform linux/amd64" \
-          RUSTFLAGS="-C target-cpu=x86-64" \
-          cross build --release --target x86_64-pc-windows-gnu
+          RUSTFLAGS="${windows_rustflags}" \
+          cross build --release --locked --target x86_64-pc-windows-gnu
 
       - name: Upload Windows artifact
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.release-please.outputs.tag_name }}
           files: target/x86_64-pc-windows-gnu/release/salty.exe
+
+  linux-pgo-bolt:
+    needs: release-please
+    if: needs.release-please.outputs.release_created
+    runs-on: ubuntu-latest
+    env:
+      ENABLE_BOLT: ${{ vars.ENABLE_BOLT || '0' }}
+      LINUX_PGO_PROFDATA_PATH: ${{ github.workspace }}/.pgo/salty-linux-x86_64.profdata
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux/OpenCL/LLVM deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            ocl-icd-libopencl1 \
+            ocl-icd-opencl-dev \
+            opencl-headers \
+            pocl-opencl-icd \
+            clinfo \
+            llvm-18 \
+            llvm-18-tools
+          echo "/usr/lib/llvm-18/bin" >> "$GITHUB_PATH"
+
+      - name: Install cargo-pgo and just
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-pgo,just
+
+      - name: Add Rust llvm tools
+        run: rustup component add llvm-tools-preview
+
+      - name: Verify committed PGO profile exists
+        run: |
+          set -euo pipefail
+          if [[ ! -f "${LINUX_PGO_PROFDATA_PATH}" ]]; then
+            echo "::error file=${LINUX_PGO_PROFDATA_PATH}::Missing committed Linux PGO profile. Expected at .pgo/salty-linux-x86_64.profdata"
+            exit 1
+          fi
+          echo "Using Linux PGO profile: ${LINUX_PGO_PROFDATA_PATH}"
+
+      - name: Build Linux release with committed PGO profile
+        run: |
+          set -euo pipefail
+          host_triple="$(rustc -vV | sed -n 's/^host: //p')"
+          RUSTFLAGS="-Cprofile-use=${LINUX_PGO_PROFDATA_PATH} -Cllvm-args=-pgo-warn-missing-function" \
+            cargo build --release --locked --target "${host_triple}" --bin salty
+
+      - name: Collect Linux PGO artifact
+        id: pgo_artifact
+        run: |
+          set -euo pipefail
+          host_triple="$(rustc -vV | sed -n 's/^host: //p')"
+          mkdir -p dist
+          cp "target/${host_triple}/release/salty" "dist/salty-linux-pgo"
+          echo "path=dist/salty-linux-pgo" >> "$GITHUB_OUTPUT"
+
+      - name: BOLT preflight
+        id: bolt_preflight
+        run: |
+          set -euo pipefail
+          if command -v llvm-bolt-18 >/dev/null 2>&1 && ! command -v llvm-bolt >/dev/null 2>&1; then
+            sudo ln -sf "$(command -v llvm-bolt-18)" /usr/local/bin/llvm-bolt
+          fi
+          if command -v merge-fdata-18 >/dev/null 2>&1 && ! command -v merge-fdata >/dev/null 2>&1; then
+            sudo ln -sf "$(command -v merge-fdata-18)" /usr/local/bin/merge-fdata
+          fi
+          if [[ "${ENABLE_BOLT}" != "1" ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "reason=ENABLE_BOLT!=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if command -v llvm-bolt >/dev/null 2>&1 && command -v merge-fdata >/dev/null 2>&1; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "reason=missing llvm-bolt/merge-fdata" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build BOLT-optimized binary (optional)
+        if: steps.bolt_preflight.outputs.enabled == 'true'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          ENABLE_BOLT=1 just bolt-instrument
+          ENABLE_BOLT=1 just bolt-train
+          ENABLE_BOLT=1 just bolt-optimize
+
+      - name: Collect Linux BOLT artifact (if produced)
+        id: bolt_artifact
+        if: steps.bolt_preflight.outputs.enabled == 'true'
+        run: |
+          set -euo pipefail
+          host_triple="$(rustc -vV | sed -n 's/^host: //p')"
+          mkdir -p dist
+          if [[ -x "target/${host_triple}/release/salty-bolt-optimized" ]]; then
+            cp "target/${host_triple}/release/salty-bolt-optimized" "dist/salty-linux-bolt"
+            echo "path=dist/salty-linux-bolt" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload Linux PGO artifact
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          files: ${{ steps.pgo_artifact.outputs.path }}
+
+      - name: Upload Linux BOLT artifact (optional)
+        if: steps.bolt_artifact.outputs.path != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          files: ${{ steps.bolt_artifact.outputs.path }}
