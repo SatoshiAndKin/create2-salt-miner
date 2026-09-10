@@ -1,0 +1,82 @@
+{
+  "corrected_commit": "8fced24",
+  "device": "Apple M4 Max",
+  "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.2\nBuildVersion:\t\t25C56\n",
+  "compiler": "rustc 1.98.0 (88d9e12ae 2026-08-18)\nbinary: rustc\ncommit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea\ncommit-date: 2026-08-18\nhost: aarch64-apple-darwin\nrelease: 1.98.0\nLLVM version: 22.1.8\n",
+  "rustflags": "-C target-cpu=native",
+  "release_profile": {
+    "opt-level": 3,
+    "lto": "fat",
+    "strip": true,
+    "panic": "abort",
+    "codegen-units": 1,
+    "debug": false,
+    "incremental": false
+  },
+  "metal_fast_math": true,
+  "baseline_threads_per_group": 256,
+  "worksize": 71303168,
+  "warmup_batches": 8,
+  "timed_batches": 32,
+  "target": 21,
+  "benchmark_attempts": 2281701376,
+  "protocol_commit": "4afaf53",
+  "python": "Python 3.14.7",
+  "power_source": "AC Power",
+  "low_power_mode": false,
+  "measurement_limits": [
+    "Normal desktop activity and background system load remain. No build or other mining command will overlap candidate measurement runs.",
+    "Windows performance is unmeasured."
+  ],
+  "acceptance": "Both set median paired gains positive; stratified paired bootstrap percentile 95% lower bound above zero; 20000 draws, seed 71303168",
+  "actual_baseline_threads_per_group": 256,
+  "actual_thread_execution_width": 32,
+  "actual_maximum_threads_per_group": 1024,
+  "source_commit": "305575174838b3008345226540169d2090de2f2a",
+  "corrected_kernel_commit": "8fced24",
+  "explicit_target": "aarch64-apple-darwin",
+  "source_snapshot": "target/metal-final/source",
+  "clean_build_directories": [
+    "target/metal-final/baseline-build",
+    "target/metal-final/final-build"
+  ],
+  "lockfile_sha256": "46f97e4c4069855237a9647910242ec83968bac965d5cda746d9560ef97843df",
+  "training": "TRAIN_CALLER           := \"0x0000000000000000000000000000000000000000\"\nTRAIN_CODEHASH         := \"0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107\"\nTRAIN_FACTORY          := \"0x0000000000FFe8B47B3e2130213B802212439497\"\nTRAIN_MIN_RUNTIME_SECS := \"30\"\nTRAIN_WORKSIZE         := \"71303168\"\nTRAIN_ZEROS            := \"1\"\nWINDOWS_RUSTFLAGS      := \"-C target-cpu=x86-64\"\nenable_bolt            := \"0\"\ntarget_directory       := \"target\"\nwindows-target         := \"x86_64-pc-windows-gnu\"\n",
+  "profiles": {
+    "baseline": {
+      "Total functions": 8304,
+      "Maximum function count": 3570,
+      "untrained_functions": 53,
+      "sha256": "b0c6b7271242c030335f39d29010c3460fd7a418ddad7ba41fbba900098ebe69"
+    },
+    "final": {
+      "Total functions": 8304,
+      "Maximum function count": 3570,
+      "untrained_functions": 53,
+      "sha256": "a5cbe3147c9b3c57e3837075bbb9f010047dbfd67a3039bffa8f4fe449d28784"
+    }
+  },
+  "artifacts": {
+    "baseline": {
+      "path": "target/metal-final/baseline",
+      "sha256": "50e76db2495312f4a1d24ef8147430a599535170e91f88dd0e562244da1f6cb9"
+    },
+    "baseline-pgo": {
+      "path": "target/metal-final/baseline-pgo",
+      "sha256": "ff82e0a8ce42650a3feeff5e4a1fce06a0f0ff733208a7dc52b73f3cf49e5ede"
+    },
+    "final": {
+      "path": "target/metal-final/final",
+      "sha256": "70988492c99312fc1b4e70e7bbd20a1bef55697a7e2e82b485d4330204d71c3a"
+    },
+    "final-pgo": {
+      "path": "target/metal-final/final-pgo",
+      "sha256": "8f3a0bbc47c398ecc634a76bccc5b4a8e4ee49df9fba01b9643a54ea2db2d4a4"
+    }
+  },
+  "measurement_script_sha256": "fd93977c13086c762e39209bdb8b726331080cde64a41272a6602a697b65b4a3",
+  "kernels": {
+    "baseline_sha256": "0b6501462a2c040a8bd73c0206708721201973b102d79c8db9d7230fbda4370f",
+    "final_sha256": "0b9a9a393ba45083ec2f6ba6c1c061590142f494694167daa3b52711809d8c14"
+  }
+}

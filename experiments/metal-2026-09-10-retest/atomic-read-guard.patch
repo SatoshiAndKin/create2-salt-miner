@@ -1,0 +1,15 @@
+--- a/src/kernels/keccak256.cl
++++ b/src/kernels/keccak256.cl
+@@ -391,8 +391,10 @@
+     // since the chance of multiple solutions appearing
+     // in a single workset is extremely low.
+ #if defined(METAL_BACKEND)
+-    if (atomic_exchange_explicit(&solutions[0], 1u, memory_order_relaxed) ==
+-        0u) {
++    // Hash every nonce before checking the shared winner flag. The exchange
++    // still selects one writer; command completion publishes its payload.
++    if (atomic_load_explicit(&solutions[0], memory_order_relaxed) == 0u &&
++        atomic_exchange_explicit(&solutions[0], 1u, memory_order_relaxed) == 0u) {
+       atomic_store_explicit(&solutions[1], nonce.uint32_t[0],
+                             memory_order_relaxed);
+       atomic_store_explicit(&solutions[2], nonce.uint32_t[1],

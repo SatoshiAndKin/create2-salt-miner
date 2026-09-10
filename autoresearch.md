@@ -1,7 +1,8 @@
 # Autoresearch: salty miner throughput
 
 ## Objective
-Improve OpenCL CREATE2 salt mining throughput for the `salty` binary.
+Improve CREATE2 salt mining throughput for the `salty` binary. Mac Metal is the
+primary target for the current run. Validate shared kernel changes on OpenCL.
 
 ## Metrics
 - **Primary**: `attempts_per_sec` (attempts/s, higher is better)
@@ -11,8 +12,10 @@ Improve OpenCL CREATE2 salt mining throughput for the `salty` binary.
 
 ## Files in Scope
 - `src/miner.rs` — OpenCL setup and mining/benchmark loops
+- `src/miner/metal.rs` — Metal setup and mining/benchmark loops
 - `src/main.rs` — CLI benchmark entrypoint
-- `src/kernels/keccak256.cl` — OpenCL kernel
+- `src/kernels/keccak256.cl` — shared Metal/OpenCL kernel
+- `scripts/metal-trials.py` — paired measurement protocol
 
 ## Off Limits
 - Do not change CREATE2 correctness or salt output format.
@@ -79,8 +82,8 @@ the two host-call trials.
 
 Five consecutive trials failed, so the run stopped under the agreed rule.
 Partial unrolling, paired 32-bit rotations, and solution atomic contention were
-not tested. No experimental code remains in the active mining paths. The
-combined retained code gain against the corrected baseline is **0%**.
+not tested in that first run. At that point, no experimental code remained in
+the active mining paths, and the combined retained code gain was **0%**.
 
 Raw pairs, timed mining output, separate startup measurements, compiler/device
 metadata, binary SHA-256 values, and rejected patches are in
@@ -95,19 +98,19 @@ mining, and fresh default `just pgo-release` training/merge/optimization. The
 profile contained 10115 functions with a maximum function count of 1275. The
 first Linux test build failed to load a dependency artifact; a fresh build
 directory passed. This is OpenCL runtime evidence on PoCL, not a Linux GPU or
-Windows performance measurement. The rejected shared kernel changes have no
-OpenCL runtime validation and were not retained.
+Windows performance measurement. At that stage, the rejected shared kernel
+changes had no OpenCL runtime validation and were not retained.
 
 Mac `just pgo-release` also completed with fresh default training. The profile
 contained 8302 functions and a maximum function count of 3570. Optimization
 reported 53 functions without training data. The five-pair PGO comparison had a
 median paired change of -9.47% against a 26.84% baseline range, so this run
 establishes no PGO throughput gain or regression. PGO remains required by the
-release policy. The raw comparison is `pgo-set1.json`. There are no retained code
-optimizations to combine or retrain separately; the corrected and final mining
-code are the same apart from tests. No total speedup is claimed.
+release policy. The raw comparison is `pgo-set1.json`. That first run retained no
+code optimizations to combine or retrain separately; its corrected and final
+mining code were the same apart from tests. No total speedup was claimed then.
 
-Final local Mac validation passed 32 tests, including all native device tests,
+First-run local Mac validation passed 32 tests, including all native device tests,
 locked check, strict Clippy, formatting, and cargo-deny. The Python metadata
 checks and PowerShell syntax check passed. Native Windows profile training and
 the resulting Windows profile-guided release build remain required before this
@@ -132,7 +135,7 @@ and `miner/metal.rs` has its own import. Both pass elapsed `Duration` values to
 the same platform-independent `MiningStop::reached` function. The conditional
 import prevents an unused-import warning on macOS; it does not disable timing.
 
-The [final Linux x86-64 CI run](https://github.com/SatoshiAndKin/create2-salt-miner/actions/runs/34457637380/job/102807649578)
+The [first-run Linux x86-64 CI run](https://github.com/SatoshiAndKin/create2-salt-miner/actions/runs/34457637380/job/102807649578)
 passed all 30 tests, including native PoCL CLI and queued mining, formatting,
 locked check, strict Clippy, cargo-deny, and Python metadata tests. Fresh default
 PGO training produced 10220 functions with a maximum function count of 1020;
@@ -183,6 +186,10 @@ and an actual baseline group size of 256.
 | Chi storage after partial unrolling, five pairs per set | +1.42%, +0.04% | [-2.19%, +3.94%] | Larger independent confirmation warranted |
 | Chi storage after partial unrolling, ten fresh pairs per set | +1.27%, -0.93% | [-2.22%, +3.28%] | Do not retain: the small gain did not repeat |
 | Paired 32-bit rotations after partial unrolling, five pairs per set | +7.77%, +7.43% | [+4.49%, +11.17%] | Retain: both sets and correctness checks pass |
+| Atomic guard, target 1, five pairs per set | -1.27%, -0.91% | [-2.50%, +1.30%] | No demonstrated gain with frequent matches |
+| Atomic guard, target 21, five pairs per set | +1.30%, -7.13% | [-4.16%, +4.01%] | No clear hashing throughput change |
+| Atomic guard, target 0, five pairs per set | +2.78%, +3.36% | [-0.20%, +5.68%] | Larger independent fallback-workload confirmation warranted |
+| Atomic guard, target 0, ten fresh pairs per set | +1.87%, -2.03% | [-4.70%, +5.06%] | Do not retain: the fallback gain did not repeat |
 
 Packed state passed 31 native Linux PoCL tests, including CPU-reference checks
 at nonce byte/word boundaries and match-producing inputs. The larger threadgroup run uses fresh samples
@@ -222,6 +229,31 @@ unrolling. This is an incremental gain; measure the combined gain directly.
 The CPU-reference tests now also require a known input with at least two zero
 bytes for each salt tail, which strengthens checks against an incorrect digest.
 
+The atomic guard is the eighth distinct code idea. It reads the Metal winner
+flag after hashing and target qualification, then skips redundant atomic
+exchanges once a writer has won. The exchange still selects exactly one writer,
+and command completion still precedes host readback. The candidate passed all
+32 native Metal tests. Its OpenCL kernel is unchanged from the retained kernel
+that passed 31 Linux PoCL tests. Targets 1, 21, and 0 test frequent matches, no
+matches, and the initial fallback threshold respectively. Each uses the same
+completed hash count and explicit target. These workloads are one optimization
+trial, not three separate ideas. A gain at target 0 must not be reported as a
+steady hashing gain. The larger confirmation does not pool its selection data.
+
+All eight planned distinct code ideas have now been tested. Retain partial
+unrolling and paired rotations. Leave invariant bindings, packed arguments,
+128-thread groups, packed state initialization, reduced chi storage, and the
+atomic guard out of the final code. The revised gate accepted the repeatable
+7.60% rotation gain; marginal positive selection results received fresh larger
+confirmations when warranted, but those gains did not repeat.
+
+The [Linux x86-64 CI run for the retained changes](https://github.com/SatoshiAndKin/create2-salt-miner/actions/runs/34465931839/job/102834392121)
+passed validation and fresh default PGO training/optimization. The Windows
+cross-check passed in the same run; the instrumented build still fails because
+stock Rust 1.98.0 GNU lacks `profiler_builtins`.
+The Linux run passed all 31 native PoCL tests and its profile contained 10245
+functions with a maximum function count of 1020.
+
 ## Nightly Rust feature assessment added to the plan
 
 Assess nightly features against the measured work before changing source. Keep
@@ -246,3 +278,73 @@ current GPU-bound path. Recheck CPU cost after the retained kernel changes. This
 screening is research and does not count as an optimization trial.
 The installed dated nightly is `nightly-2026-09-10`, rustc `a36d05efa` (1.100.0),
 with LLVM 23.1.1. Its availability does not establish a runtime gain.
+
+After both retained kernel changes, `/usr/bin/time -lp` reported 0.00 seconds of
+user CPU time and 0.01 seconds of system CPU time over 23.62 seconds of wall time
+for 64 warmup batches and 128 timed batches. These CPU values have 0.01-second
+printed precision. `host-cpu.json` records the exact command, binary hash, metric,
+and resource report. This agrees with the earlier CPU Time Profiler evidence:
+the measured mining workload spends its time on the GPU. No nightly host-code
+experiment is justified by these samples. No compiler gain is claimed, and the
+stable release pin remains 1.98.0.
+
+## Final combined measurements and delivery
+
+The final code retains partial round unrolling and paired 32-bit rotations.
+The corrected baseline uses the kernel from `8fced24` with the same current
+benchmark and Rust source as the final build. Both use explicit target
+`aarch64-apple-darwin`, stable Rust 1.98.0, `-C target-cpu=native`, and the same
+release settings. Separate clean build directories prevent profile/artifact
+reuse. Each ran the unchanged default `just pgo-release` sequence, including
+worksize 71303168, target 1, and minimum training time 30 seconds. Both profiles
+contained 8304 functions with maximum function count 3570. Each optimized build
+reported 53 functions without profile data. Profile validation and both builds
+passed.
+
+All final comparisons use two sets of five alternating pairs, except the fresh
+PGO-effect confirmation, which uses ten pairs per set. Each sample completes
+2281701376 timed hashes after eight warmup batches. No local build or other
+agent-started mining command overlapped measurements. Desktop activity and
+background load still caused substantial variation.
+
+| Comparison | Set median paired changes | Pooled paired median | Paired 95% interval |
+| --- | --- | ---: | --- |
+| Combined code, without PGO | +48.96%, +70.09% | **+60.71%** | [+55.01%, +65.22%] |
+| Combined code, both builds with fresh PGO | +52.56%, +75.96% | **+62.40%** | [+54.92%, +79.61%] |
+| PGO effect on final code, initial comparison | -10.96%, -2.76% | -6.22% | [-8.75%, -0.67%] |
+| PGO effect on final code, fresh larger confirmation | -0.10%, -1.00% | -0.29% | [-1.87%, +1.91%] |
+
+The combined gain passes the revised gate with and without PGO. The initial PGO
+slowdown did not repeat in the larger confirmation. Both final binaries contain
+the exact retained kernel bytes. These results establish no repeatable PGO
+throughput gain or slowdown; PGO remains mandatory. Do not subtract the two
+combined code percentages to infer a PGO gain: they are separate run sets.
+
+In the PGO code comparison, the baseline and final median rates were 271.6 and
+432.9 million hashes/s. The baseline range was 36.70% of its median. In the
+non-PGO comparison, the rates were 299.9 and 445.3 million hashes/s, with a
+51.40% baseline range. Reported gains use paired ratios, not the ratio of these
+separate rate medians. These are results for this Mac and workload.
+
+Every completed final comparison passed easy minimum-only mining and difficult
+maximum-limited fallback checks, with exit codes 0 and 2 and complete 96-byte
+ABI output. The PGO comparison's easy mining wall times were 3.54 seconds for the
+baseline and 2.34 seconds for the final build; difficult mining took 3.78 and
+3.44 seconds. These single timing checks establish behavior, not a separate
+latency speedup. Limits still apply at batch boundaries. Startup estimates are
+stored separately; no startup improvement is claimed.
+
+Raw pairs, mining outputs, startup estimates, compiler/flag/source fingerprints,
+profile hashes, and build/training logs are in
+[`experiments/metal-2026-09-10-final`](experiments/metal-2026-09-10-final).
+The native Mac checks passed all 32 tests, including device tests. Linux ARM64
+PoCL and Linux x86-64 CI passed 31 tests. Formatting, locked check, strict Clippy,
+Python checks, cargo-deny, and Windows GNU cross-check passed. Cargo-deny reports
+duplicate versions and the existing yanked `chacha20 0.10.1` dependency.
+This is Metal runtime and PoCL correctness
+evidence; Windows performance remains unmeasured.
+
+The Windows release repair remains incomplete: stock Rust 1.98.0 GNU cannot
+build the instrumented executable without `profiler_builtins`. A supported
+target or compiler build, native Windows training, a committed fresh profile,
+and a successful profile-guided Windows release build are still required.

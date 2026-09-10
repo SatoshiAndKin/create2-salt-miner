@@ -1,0 +1,26 @@
+{
+  "command": [
+    "/usr/bin/time",
+    "-lp",
+    "/Users/bryan/code/create2-salt-miner/target/metal-retries/pre-atomic",
+    "bench",
+    "--factory",
+    "0x0000000000FFe8B47B3e2130213B802212439497",
+    "--caller",
+    "0x0000000000000000000000000000000000000000",
+    "--codehash",
+    "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+    "--worksize",
+    "71303168",
+    "--zeros",
+    "21",
+    "--warmup-batches",
+    "64",
+    "--batches",
+    "128"
+  ],
+  "binary_sha256": "9180c526bffd09629cad2f104767dfde451efe33b3a2ef839252854fb9c973f8",
+  "exit_code": 0,
+  "stdout": "METRIC attempts_per_sec=573800451\n",
+  "stderr": "real 23.62\nuser 0.00\nsys 0.01\n            16171008  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                1209  page reclaims\n                  84  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   7  voluntary context switches\n                 227  involuntary context switches\n           163058895  instructions retired\n            75636470  cycles elapsed\n           182714920  peak memory footprint\n"
+}
