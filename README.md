@@ -99,6 +99,12 @@ response keeps `found`, `salt`, `address`, `score`, `runtime_ms`, and `cache_hit
 `runtime_ms` reports measured mining time, also when no candidate exists. Cache
 keys include both limits. See `/api-docs/openapi.json` for the API schema.
 
+At startup, the server migrates stored requests without runtime limits to the
+current key format before it resumes jobs. It retains saved results and combines
+duplicate jobs. It keeps older requests with runtime limits unchanged because
+their mining behavior differed. The migration updates both tables in one
+transaction and rolls back if it fails.
+
 ## Performance Benchmarks
 
 Run `salty bench` for warmed, completed hashes per second. The default
@@ -152,6 +158,8 @@ final source and lockfile changes:
 1. Run `just windows-pgo-instrument` on the cross-build host. It writes
    `target/windows-pgo-bundle.zip` with the instrumented GNU executable, compiler
    identity, source and lockfile hashes, compiler flags, and training inputs.
+   Packaging reads the executable from Cargo's configured target directory,
+   including `CARGO_TARGET_DIR` and `build.target-dir` settings.
 2. Copy the bundle to native Windows. From this checkout, run
    `just windows-pgo-train <bundle.zip>`. You can also extract the bundle to an
    empty directory and use its included `Justfile` with the original zip path.

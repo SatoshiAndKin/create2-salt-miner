@@ -102,8 +102,13 @@ def check_profile(path: Path) -> None:
 
 
 def bundle(destination: Path) -> None:
-    executable = Path("target/x86_64-pc-windows-gnu/release/salty.exe")
     metadata = expected()
+    cargo = json.loads(
+        output("cargo", "metadata", "--locked", "--no-deps", "--format-version", "1")
+    )
+    executable = (
+        Path(cargo["target_directory"]) / metadata["target"] / "release/salty.exe"
+    )
     metadata["executable_sha256"] = digest(executable)
     metadata["source_commit"] = output("git", "rev-parse", "HEAD")
     destination.parent.mkdir(parents=True, exist_ok=True)
