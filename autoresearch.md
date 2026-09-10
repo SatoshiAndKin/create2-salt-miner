@@ -166,3 +166,61 @@ maximum can correctly return a score-zero fallback. The helper now separates
 minimum-only qualification from difficult-target maximum expiry, as the native
 CLI test does. A complete control rerun follows this correction. This is a
 harness repair, not an optimization trial.
+
+The complete control rerun passed its mining checks. Its set medians were
+-7.96% and +7.02%, with pooled interval [-8.77%, +9.24%]. The Mac ran on AC power
+with low-power mode disabled. Background system load and desktop activity still
+limit precision. The device reported execution width 32, maximum threads 1024,
+and an actual baseline group size of 256.
+
+| Retry | Set medians | Pooled paired 95% interval | Decision |
+| --- | --- | --- | --- |
+| 128-thread groups, five pairs per set | +7.57%, +7.52% | [-1.33%, +17.36%] | Larger independent confirmation warranted |
+| 128-thread groups, ten fresh pairs per set | -0.51%, -2.64% | [-4.91%, +1.18%] | Do not retain: gain did not repeat |
+| Packed state, five pairs per set | -10.05%, +3.43% | [-6.55%, +6.40%] | Do not retain: sets disagree and interval includes zero |
+| Invariant bindings, five pairs per set | -2.33%, +0.31% | [-5.32%, +0.11%] | Do not retain: sets disagree and interval includes zero |
+| Partial round unrolling, five pairs per set | +38.13%, +47.85% | [+41.33%, +55.39%] | Retain: both sets pass, with native correctness checks |
+
+Packed state passed 31 native Linux PoCL tests, including CPU-reference checks
+at nonce byte/word boundaries and match-producing inputs. The larger threadgroup run uses fresh samples
+without pooling the earlier selection data. Further confirmation, if warranted
+by positive medians with an interval crossing zero, is limited to one larger
+fresh run per candidate; the gain gate itself stays unchanged.
+
+Partial round unrolling is the sixth distinct code idea in this run. It replaces
+23 expanded Keccak rounds with a constant table and a loop with `#pragma unroll 4`.
+The existing final partial round stays intact. All 32 native Metal tests and
+31 native Linux PoCL tests passed, including CPU-reference checks for nonce
+boundaries, matching inputs, timed mining, and remote requests. Linux strict
+Clippy passed. This change reduces shader expansion; the earlier CPU profile
+placed the measured work on the GPU. The pooled paired median gain was 46.88%.
+The root now retains this kernel. Later trials must compare against it.
+
+The matching baseline and candidate were built in the same scratch source and
+target directory with stable 1.98.0, explicit `-C target-cpu=native`, and unchanged
+release settings. `partial-rounds.json` records both binary hashes, all commands,
+startup, and timed mining. `partial-rounds.patch` records the isolated change.
+Final combined and fresh PGO comparisons remain to be completed.
+
+## Nightly Rust feature assessment added to the plan
+
+Assess nightly features against the measured work before changing source. Keep
+stable 1.98.0 as the release contract during the assessment. A nightly compiler
+comparison must use a dated toolchain, the same kernel and release options, fresh
+profiles from that compiler, and the same paired gain gate. Report compiler,
+code, and PGO effects separately. Check Mac, Linux, and Windows support before
+proposing a release toolchain change.
+
+| Feature or check | Fit to this miner and next action |
+| --- | --- |
+| [Explicit tail calls (`become`)](https://doc.rust-lang.org/stable/core/keyword.become.html) | Inspect hot recursive calls or interpreter dispatch. The current host mining path uses loops and waits for GPU work; no measured tail-call opportunity exists. Rust marks this feature incomplete. Do not rewrite the loop into recursion to force a trial. |
+| [Portable SIMD](https://doc.rust-lang.org/nightly/std/simd/index.html) | Look for repeated host data processing. Keccak executes in Metal/OpenCL source, so Rust SIMD does not change the hashing kernel. CPU reference hashing checks results and is outside the throughput bottleneck. |
+| [Branch hints](https://doc.rust-lang.org/nightly/std/hint/fn.likely.html) | Check CPU branch samples before adding hints to result handling. Mandatory PGO already measures host branch frequency. Current CPU evidence does not justify a separate hint trial. |
+| [MIR optimization levels](https://doc.rust-lang.org/nightly/unstable-book/compiler-flags/mir-opt-level.html) and newer LLVM | Compare a dated nightly compiler only if the host profile identifies a material cost after the kernel gain. The internal MIR option affects Rust code, not the runtime Metal/OpenCL compiler. Use optimization remarks to identify a concrete missed optimization first. |
+| [Optimization remarks](https://doc.rust-lang.org/rustc/codegen-options/#remark) | Available on stable. Use `-C remark` for an identified Rust hot function; inspect generated code alongside CPU samples. |
+| [Sample-based PGO](https://doc.rust-lang.org/beta/unstable-book/compiler-flags/profile_sample_use.html) | Optional investigation for a supported native host with representative CPU samples. Keep the required instrumented PGO release path. Never reuse profiles across compiler versions. |
+| [Compiler self-profile](https://doc.rust-lang.org/unstable-book/compiler-flags/self-profile.html) | Measures compilation, not miner throughput. Use only to investigate build time and report that metric separately. |
+
+The first feature pass found no supported reason to add nightly syntax to the
+current GPU-bound path. Recheck CPU cost after the retained kernel changes. This
+screening is research and does not count as an optimization trial.

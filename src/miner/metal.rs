@@ -334,6 +334,12 @@ mod tests {
             max_runtime_secs: None,
         };
         let engine = MetalMiner::new(&config)?;
+        eprintln!(
+            "Metal execution width {}, maximum threads {}, selected threads {}",
+            engine.pipeline.thread_execution_width(),
+            engine.pipeline.max_total_threads_per_threadgroup(),
+            engine.threads_per_group
+        );
         for tail in [0_u32, 0x1234_5678, u32::MAX] {
             let salt = FixedBytes::from(tail.to_le_bytes());
             let qualifying_nonce = (0_u32..10_000)

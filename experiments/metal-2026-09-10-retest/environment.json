@@ -1,0 +1,36 @@
+{
+  "corrected_commit": "8fced24",
+  "device": "Apple M4 Max",
+  "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.2\nBuildVersion:\t\t25C56\n",
+  "compiler": "rustc 1.98.0 (88d9e12ae 2026-08-18)\nbinary: rustc\ncommit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea\ncommit-date: 2026-08-18\nhost: aarch64-apple-darwin\nrelease: 1.98.0\nLLVM version: 22.1.8\n",
+  "rustflags": "-C target-cpu=native",
+  "release_profile": {
+    "opt-level": 3,
+    "lto": "fat",
+    "strip": true,
+    "panic": "abort",
+    "codegen-units": 1,
+    "debug": false,
+    "incremental": false
+  },
+  "metal_fast_math": true,
+  "baseline_threads_per_group": 256,
+  "worksize": 71303168,
+  "warmup_batches": 8,
+  "timed_batches": 32,
+  "target": 21,
+  "benchmark_attempts": 2281701376,
+  "protocol_commit": "627e6d4",
+  "python": "Python 3.14.7",
+  "power_source": "AC Power",
+  "low_power_mode": false,
+  "reused_binaries": "SHA256 checked against original raw results before retries; compiler, flags and mining code unchanged",
+  "measurement_limits": [
+    "Normal desktop activity and background system load remain. No build or other mining command will overlap candidate measurement runs.",
+    "Windows performance is unmeasured."
+  ],
+  "acceptance": "Both set median paired gains positive; stratified paired bootstrap percentile 95% lower bound above zero; 20000 draws, seed 71303168",
+  "actual_baseline_threads_per_group": 256,
+  "actual_thread_execution_width": 32,
+  "actual_maximum_threads_per_group": 1024
+}
