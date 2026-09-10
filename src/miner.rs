@@ -644,6 +644,85 @@ fn mk_kernel_src(config: &AppConfig) -> String {
 mod tests {
     use super::*;
 
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    #[ignore = "requires an OpenCL device"]
+    fn opencl_scores_match_cpu_at_nonce_boundaries() -> Result<()> {
+        let config = AppConfig {
+            factory: [0x11; 20],
+            caller: [0x22; 20],
+            codehash: [0x33; 32],
+            worksize: 1,
+            zeros: 0,
+            one: true,
+            abi: true,
+            min_runtime_secs: None,
+            max_runtime_secs: None,
+        };
+        let queue = ProQue::builder()
+            .src(mk_kernel_src(&config))
+            .dims(1_usize)
+            .build()?;
+        let solutions = Buffer::<u64>::builder()
+            .queue(queue.queue().clone())
+            .len(1)
+            .build()?;
+        let kernel = queue
+            .kernel_builder("hashMessage")
+            .arg_named("message", 0_u32)
+            .arg_named("nonce", 0_u32)
+            .arg_named("min_zeros", 0_u32)
+            .arg(&solutions)
+            .build()?;
+        for tail in [0_u32, 0x1234_5678, u32::MAX] {
+            let salt = FixedBytes::from(tail.to_le_bytes());
+            let qualifying_nonce = (1_u64..10_000)
+                .find(|&nonce| mining_outcome(&config, &salt, nonce).unwrap().score >= 1)
+                .expect("fixed workload has a positive-score nonce");
+            // Exercise both words and the byte split used by packed state setup.
+            for nonce in [
+                0,
+                1,
+                0x00ff_ffff,
+                0x0100_0000,
+                u64::from(u32::MAX),
+                1_u64 << 32,
+                u64::MAX - 1,
+                u64::MAX,
+                qualifying_nonce,
+            ] {
+                let reference = mining_outcome(&config, &salt, nonce)?;
+                kernel.set_arg("message", tail)?;
+                kernel.set_arg("nonce", (nonce >> 32) as u32)?;
+                for threshold in 0..=reference.score + 1 {
+                    // A different initial word distinguishes no write from a
+                    // matching zero nonce without changing the kernel contract.
+                    let initial = nonce.wrapping_add(1);
+                    solutions.write(&[initial][..]).enq()?;
+                    kernel.set_arg("min_zeros", threshold as u32)?;
+                    unsafe {
+                        kernel
+                            .cmd()
+                            .global_work_offset(nonce as u32 as usize)
+                            .enq()?;
+                    }
+                    let mut actual = [initial];
+                    solutions.read(&mut actual[..]).enq()?;
+                    let expected = if reference.score >= threshold {
+                        nonce
+                    } else {
+                        initial
+                    };
+                    assert_eq!(
+                        actual[0], expected,
+                        "tail {tail}, nonce {nonce}, threshold {threshold}"
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
     #[test]
     fn stop_requires_target_and_minimum_before_maximum() {
         let stop = MiningStop::from_limits(Some(10), Some(20));

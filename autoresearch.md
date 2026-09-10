@@ -157,3 +157,12 @@ including outliers, startup, easy/difficult timed mining, and raw ABI output.
 This is an estimate from these measurements, not a performance claim for other
 hardware. Keep the mining correctness and timeout checks. Confirmation runs and
 retries do not count as new distinct optimization ideas.
+
+The first control used the same corrected binary for both labels. Its set
+medians were -0.04% and -1.98%; the pooled interval was [-4.08%, +0.20%]. It did
+not pass the gain gate. Its throughput data is retained in `control.json`, but
+the subsequent easy mining check exposed a harness assumption: a three-second
+maximum can correctly return a score-zero fallback. The helper now separates
+minimum-only qualification from difficult-target maximum expiry, as the native
+CLI test does. A complete control rerun follows this correction. This is a
+harness repair, not an optimization trial.

@@ -183,26 +183,27 @@ def main() -> None:
         data["startup"][name] = startup
         data["mining"][name] = []
         for target in (1, 21):
-            run = measure(
-                binary,
-                [
-                    "mine",
-                    *inputs,
-                    "--zeros",
-                    str(target),
-                    "--min-runtime-secs",
-                    "2",
-                    "--max-runtime-secs",
-                    "3",
-                    "--abi",
-                ],
-            )
+            arguments = [
+                "mine",
+                *inputs,
+                "--zeros",
+                str(target),
+                "--min-runtime-secs",
+                "2",
+                "--abi",
+            ]
+            # Qualification has no competing deadline. The difficult workload
+            # checks maximum expiry and fallback under the same fixed worksize.
+            if target == 21:
+                arguments.extend(["--max-runtime-secs", "3"])
+            run = measure(binary, arguments)
+            data["mining"][name].append(run)
+            save(args.output, data)
             expected_exit = 0 if target == 1 else 2
             if run["exit_code"] != expected_exit:
                 raise RuntimeError(f"Incorrect mining exit code: {run}")
             if len(bytes.fromhex(run["stdout"].strip().removeprefix("0x"))) != 96:
                 raise RuntimeError("Incorrect ABI output size")
-            data["mining"][name].append(run)
     data["completed"] = True
     save(args.output, data)
     print(json.dumps(data["summary"]), flush=True)
