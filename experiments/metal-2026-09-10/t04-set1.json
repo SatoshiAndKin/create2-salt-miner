@@ -1,0 +1,428 @@
+{
+  "binaries": {
+    "baseline": {
+      "path": "target/metal-trials/corrected",
+      "sha256": "22a7821f9d346958edac0f607f687609d450b30b1f4dfd17325310c060b8a6e9"
+    },
+    "candidate": {
+      "path": "target/metal-trials/t04-packed-state",
+      "sha256": "677f3b93c3a2f6f220151810a48bd145f36540557d69d7c40c29f4cf2c74bcc5"
+    }
+  },
+  "pairs": [
+    {
+      "baseline": {
+        "arguments": [
+          "bench",
+          "--factory",
+          "0x0000000000FFe8B47B3e2130213B802212439497",
+          "--caller",
+          "0x0000000000000000000000000000000000000000",
+          "--codehash",
+          "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+          "--worksize",
+          "71303168",
+          "--warmup-batches",
+          "2",
+          "--batches",
+          "8"
+        ],
+        "wall_seconds": 3.7504495829343796,
+        "exit_code": 0,
+        "stdout": "METRIC attempts_per_sec=180756747\n",
+        "stderr": "",
+        "metrics": {
+          "attempts_per_sec": 180756747.0
+        }
+      },
+      "candidate": {
+        "arguments": [
+          "bench",
+          "--factory",
+          "0x0000000000FFe8B47B3e2130213B802212439497",
+          "--caller",
+          "0x0000000000000000000000000000000000000000",
+          "--codehash",
+          "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+          "--worksize",
+          "71303168",
+          "--warmup-batches",
+          "2",
+          "--batches",
+          "8"
+        ],
+        "wall_seconds": 3.7294435831718147,
+        "exit_code": 0,
+        "stdout": "METRIC attempts_per_sec=219959779\n",
+        "stderr": "",
+        "metrics": {
+          "attempts_per_sec": 219959779.0
+        }
+      }
+    },
+    {
+      "candidate": {
+        "arguments": [
+          "bench",
+          "--factory",
+          "0x0000000000FFe8B47B3e2130213B802212439497",
+          "--caller",
+          "0x0000000000000000000000000000000000000000",
+          "--codehash",
+          "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+          "--worksize",
+          "71303168",
+          "--warmup-batches",
+          "2",
+          "--batches",
+          "8"
+        ],
+        "wall_seconds": 3.098474584054202,
+        "exit_code": 0,
+        "stdout": "METRIC attempts_per_sec=231703162\n",
+        "stderr": "",
+        "metrics": {
+          "attempts_per_sec": 231703162.0
+        }
+      },
+      "baseline": {
+        "arguments": [
+          "bench",
+          "--factory",
+          "0x0000000000FFe8B47B3e2130213B802212439497",
+          "--caller",
+          "0x0000000000000000000000000000000000000000",
+          "--codehash",
+          "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+          "--worksize",
+          "71303168",
+          "--warmup-batches",
+          "2",
+          "--batches",
+          "8"
+        ],
+        "wall_seconds": 3.050057041924447,
+        "exit_code": 0,
+        "stdout": "METRIC attempts_per_sec=234303756\n",
+        "stderr": "",
+        "metrics": {
+          "attempts_per_sec": 234303756.0
+        }
+      }
+    },
+    {
+      "baseline": {
+        "arguments": [
+          "bench",
+          "--factory",
+          "0x0000000000FFe8B47B3e2130213B802212439497",
+          "--caller",
+          "0x0000000000000000000000000000000000000000",
+          "--codehash",
+          "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+          "--worksize",
+          "71303168",
+          "--warmup-batches",
+          "2",
+          "--batches",
+          "8"
+        ],
+        "wall_seconds": 3.302911332808435,
+        "exit_code": 0,
+        "stdout": "METRIC attempts_per_sec=217391946\n",
+        "stderr": "",
+        "metrics": {
+          "attempts_per_sec": 217391946.0
+        }
+      },
+      "candidate": {
+        "arguments": [
+          "bench",
+          "--factory",
+          "0x0000000000FFe8B47B3e2130213B802212439497",
+          "--caller",
+          "0x0000000000000000000000000000000000000000",
+          "--codehash",
+          "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+          "--worksize",
+          "71303168",
+          "--warmup-batches",
+          "2",
+          "--batches",
+          "8"
+        ],
+        "wall_seconds": 3.2038101670332253,
+        "exit_code": 0,
+        "stdout": "METRIC attempts_per_sec=224244660\n",
+        "stderr": "",
+        "metrics": {
+          "attempts_per_sec": 224244660.0
+        }
+      }
+    },
+    {
+      "candidate": {
+        "arguments": [
+          "bench",
+          "--factory",
+          "0x0000000000FFe8B47B3e2130213B802212439497",
+          "--caller",
+          "0x0000000000000000000000000000000000000000",
+          "--codehash",
+          "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+          "--worksize",
+          "71303168",
+          "--warmup-batches",
+          "2",
+          "--batches",
+          "8"
+        ],
+        "wall_seconds": 3.3902707090601325,
+        "exit_code": 0,
+        "stdout": "METRIC attempts_per_sec=207922221\n",
+        "stderr": "",
+        "metrics": {
+          "attempts_per_sec": 207922221.0
+        }
+      },
+      "baseline": {
+        "arguments": [
+          "bench",
+          "--factory",
+          "0x0000000000FFe8B47B3e2130213B802212439497",
+          "--caller",
+          "0x0000000000000000000000000000000000000000",
+          "--codehash",
+          "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+          "--worksize",
+          "71303168",
+          "--warmup-batches",
+          "2",
+          "--batches",
+          "8"
+        ],
+        "wall_seconds": 3.50645412504673,
+        "exit_code": 0,
+        "stdout": "METRIC attempts_per_sec=205944931\n",
+        "stderr": "",
+        "metrics": {
+          "attempts_per_sec": 205944931.0
+        }
+      }
+    },
+    {
+      "baseline": {
+        "arguments": [
+          "bench",
+          "--factory",
+          "0x0000000000FFe8B47B3e2130213B802212439497",
+          "--caller",
+          "0x0000000000000000000000000000000000000000",
+          "--codehash",
+          "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+          "--worksize",
+          "71303168",
+          "--warmup-batches",
+          "2",
+          "--batches",
+          "8"
+        ],
+        "wall_seconds": 3.013618584256619,
+        "exit_code": 0,
+        "stdout": "METRIC attempts_per_sec=244342744\n",
+        "stderr": "",
+        "metrics": {
+          "attempts_per_sec": 244342744.0
+        }
+      },
+      "candidate": {
+        "arguments": [
+          "bench",
+          "--factory",
+          "0x0000000000FFe8B47B3e2130213B802212439497",
+          "--caller",
+          "0x0000000000000000000000000000000000000000",
+          "--codehash",
+          "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+          "--worksize",
+          "71303168",
+          "--warmup-batches",
+          "2",
+          "--batches",
+          "8"
+        ],
+        "wall_seconds": 2.8323825406841934,
+        "exit_code": 0,
+        "stdout": "METRIC attempts_per_sec=251048372\n",
+        "stderr": "",
+        "metrics": {
+          "attempts_per_sec": 251048372.0
+        }
+      }
+    }
+  ],
+  "mining": {
+    "baseline": [
+      {
+        "arguments": [
+          "mine",
+          "--factory",
+          "0x0000000000FFe8B47B3e2130213B802212439497",
+          "--caller",
+          "0x0000000000000000000000000000000000000000",
+          "--codehash",
+          "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+          "--worksize",
+          "71303168",
+          "--zeros",
+          "1",
+          "--min-runtime-secs",
+          "2",
+          "--max-runtime-secs",
+          "3",
+          "--abi"
+        ],
+        "wall_seconds": 4.492458916734904,
+        "exit_code": 0,
+        "stdout": "0x00000000000000000000000000000000000000009ed4f8c0621800001ad778ab000000000000000000000000f6ac9ea57196008f783e6e78fe09d63fb75c14080000000000000000000000000000000000000000000000000000000000000001\n",
+        "stderr": "",
+        "metrics": {}
+      },
+      {
+        "arguments": [
+          "mine",
+          "--factory",
+          "0x0000000000FFe8B47B3e2130213B802212439497",
+          "--caller",
+          "0x0000000000000000000000000000000000000000",
+          "--codehash",
+          "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+          "--worksize",
+          "71303168",
+          "--zeros",
+          "21",
+          "--min-runtime-secs",
+          "2",
+          "--max-runtime-secs",
+          "3",
+          "--abi"
+        ],
+        "wall_seconds": 4.342132207937539,
+        "exit_code": 2,
+        "stdout": "0x0000000000000000000000000000000000000000a455114d2300000054cf3f9b000000000000000000000000e8009bd549427ea56815380635b2f2114e8d89fb0000000000000000000000000000000000000000000000000000000000000001\n",
+        "stderr": "",
+        "metrics": {}
+      }
+    ],
+    "candidate": [
+      {
+        "arguments": [
+          "mine",
+          "--factory",
+          "0x0000000000FFe8B47B3e2130213B802212439497",
+          "--caller",
+          "0x0000000000000000000000000000000000000000",
+          "--codehash",
+          "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+          "--worksize",
+          "71303168",
+          "--zeros",
+          "1",
+          "--min-runtime-secs",
+          "2",
+          "--max-runtime-secs",
+          "3",
+          "--abi"
+        ],
+        "wall_seconds": 4.166244375053793,
+        "exit_code": 0,
+        "stdout": "0x0000000000000000000000000000000000000000ba60e2b03107000095491f86000000000000000000000000f423945713b3f6ca04c553aa890002489fb0028f0000000000000000000000000000000000000000000000000000000000000001\n",
+        "stderr": "",
+        "metrics": {}
+      },
+      {
+        "arguments": [
+          "mine",
+          "--factory",
+          "0x0000000000FFe8B47B3e2130213B802212439497",
+          "--caller",
+          "0x0000000000000000000000000000000000000000",
+          "--codehash",
+          "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+          "--worksize",
+          "71303168",
+          "--zeros",
+          "21",
+          "--min-runtime-secs",
+          "2",
+          "--max-runtime-secs",
+          "3",
+          "--abi"
+        ],
+        "wall_seconds": 5.033030791673809,
+        "exit_code": 2,
+        "stdout": "0x0000000000000000000000000000000000000000f7899e8443190000cc7002b60000000000000000000000006d97e2dce81c08a9ea914b23a4bcb0a421f600570000000000000000000000000000000000000000000000000000000000000001\n",
+        "stderr": "",
+        "metrics": {}
+      }
+    ]
+  },
+  "startup": {
+    "baseline": {
+      "arguments": [
+        "bench",
+        "--factory",
+        "0x0000000000FFe8B47B3e2130213B802212439497",
+        "--caller",
+        "0x0000000000000000000000000000000000000000",
+        "--codehash",
+        "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+        "--worksize",
+        "71303168",
+        "--warmup-batches",
+        "0",
+        "--batches",
+        "1"
+      ],
+      "wall_seconds": 0.3073781249113381,
+      "exit_code": 0,
+      "stdout": "METRIC attempts_per_sec=256436865\n",
+      "stderr": "",
+      "metrics": {
+        "attempts_per_sec": 256436865.0
+      },
+      "untimed_wall_seconds": 0.029324624296284185
+    },
+    "candidate": {
+      "arguments": [
+        "bench",
+        "--factory",
+        "0x0000000000FFe8B47B3e2130213B802212439497",
+        "--caller",
+        "0x0000000000000000000000000000000000000000",
+        "--codehash",
+        "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+        "--worksize",
+        "71303168",
+        "--warmup-batches",
+        "0",
+        "--batches",
+        "1"
+      ],
+      "wall_seconds": 0.3876105831004679,
+      "exit_code": 0,
+      "stdout": "METRIC attempts_per_sec=309636545\n",
+      "stderr": "",
+      "metrics": {
+        "attempts_per_sec": 309636545.0
+      },
+      "untimed_wall_seconds": 0.1573303750584876
+    }
+  },
+  "summary": {
+    "baseline_median": 217391946.0,
+    "candidate_median": 224244660.0,
+    "median_paired_gain": 0.027443532352243727,
+    "baseline_range_fraction": 0.292494722872576
+  }
+}

@@ -1,0 +1,31 @@
+--- a/src/kernels/keccak256.cl
++++ b/src/kernels/keccak256.cl
+@@ -67,7 +67,27 @@
+   return as_ulong(output);
+ }
+ #else
+-#define rol(x, s) rotate((ulong)(x), (ulong)(s))
++static inline ulong rol(const ulong x, const uint s) {
++  nonce_t lanes;
++  lanes.uint64_t = x;
++  const uint lo = lanes.uint32_t[0];
++  const uint hi = lanes.uint32_t[1];
++  uint out_lo;
++  uint out_hi;
++  if (s < 32u) {
++    out_lo = (lo << s) | (hi >> (32u - s));
++    out_hi = (hi << s) | (lo >> (32u - s));
++  } else if (s == 32u) {
++    out_lo = hi;
++    out_hi = lo;
++  } else {
++    out_lo = (hi << (s - 32u)) | (lo >> (64u - s));
++    out_hi = (lo << (s - 32u)) | (hi >> (64u - s));
++  }
++  lanes.uint32_t[0] = out_lo;
++  lanes.uint32_t[1] = out_hi;
++  return lanes.uint64_t;
++}
+ #endif
+ 
+ #define rol1(x) rol(x, 1u)

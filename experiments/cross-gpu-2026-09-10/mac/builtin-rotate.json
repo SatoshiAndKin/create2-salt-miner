@@ -1,0 +1,798 @@
+{
+  "binaries": {
+    "baseline": {
+      "path": "/Users/bryan/code/create2-salt-miner/target/metal-final/final",
+      "sha256": "70988492c99312fc1b4e70e7bbd20a1bef55697a7e2e82b485d4330204d71c3a"
+    },
+    "candidate": {
+      "path": "/Users/bryan/code/create2-salt-miner/target/cross-gpu/artifacts/builtin-rotate",
+      "sha256": "46c376638f91562b8bdeab32b0dd276c4df550f1ed7a9e8fa4e3a4379f820069"
+    }
+  },
+  "protocol": {
+    "sets": 2,
+    "zero_byte_target": 21,
+    "pairs_per_set": 5,
+    "warmup_batches": 8,
+    "timed_batches": 32,
+    "completed_hashes_per_measurement": 2281701376,
+    "preconditioning_warmup_batches": 64,
+    "order": "AB/BA alternation; reverse the starting order in set two",
+    "acceptance": "Both set medians positive and pooled paired bootstrap 95% lower bound above zero"
+  },
+  "sets": [
+    {
+      "preconditioning": {
+        "arguments": [
+          "bench",
+          "--factory",
+          "0x0000000000FFe8B47B3e2130213B802212439497",
+          "--caller",
+          "0x0000000000000000000000000000000000000000",
+          "--codehash",
+          "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+          "--worksize",
+          "71303168",
+          "--zeros",
+          "21",
+          "--warmup-batches",
+          "64",
+          "--batches",
+          "32"
+        ],
+        "wall_seconds": 10.095447999890894,
+        "exit_code": 0,
+        "stdout": "METRIC attempts_per_sec=676744783\n",
+        "stderr": "",
+        "metrics": {
+          "attempts_per_sec": 676744783.0
+        }
+      },
+      "pairs": [
+        {
+          "baseline": {
+            "arguments": [
+              "bench",
+              "--factory",
+              "0x0000000000FFe8B47B3e2130213B802212439497",
+              "--caller",
+              "0x0000000000000000000000000000000000000000",
+              "--codehash",
+              "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+              "--worksize",
+              "71303168",
+              "--zeros",
+              "21",
+              "--warmup-batches",
+              "8",
+              "--batches",
+              "32"
+            ],
+            "wall_seconds": 4.212247167248279,
+            "exit_code": 0,
+            "stdout": "METRIC attempts_per_sec=681753622\n",
+            "stderr": "",
+            "metrics": {
+              "attempts_per_sec": 681753622.0
+            }
+          },
+          "candidate": {
+            "arguments": [
+              "bench",
+              "--factory",
+              "0x0000000000FFe8B47B3e2130213B802212439497",
+              "--caller",
+              "0x0000000000000000000000000000000000000000",
+              "--codehash",
+              "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+              "--worksize",
+              "71303168",
+              "--zeros",
+              "21",
+              "--warmup-batches",
+              "8",
+              "--batches",
+              "32"
+            ],
+            "wall_seconds": 4.6620975830592215,
+            "exit_code": 0,
+            "stdout": "METRIC attempts_per_sec=629391173\n",
+            "stderr": "",
+            "metrics": {
+              "attempts_per_sec": 629391173.0
+            }
+          }
+        },
+        {
+          "candidate": {
+            "arguments": [
+              "bench",
+              "--factory",
+              "0x0000000000FFe8B47B3e2130213B802212439497",
+              "--caller",
+              "0x0000000000000000000000000000000000000000",
+              "--codehash",
+              "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+              "--worksize",
+              "71303168",
+              "--zeros",
+              "21",
+              "--warmup-batches",
+              "8",
+              "--batches",
+              "32"
+            ],
+            "wall_seconds": 4.552702042274177,
+            "exit_code": 0,
+            "stdout": "METRIC attempts_per_sec=629804485\n",
+            "stderr": "",
+            "metrics": {
+              "attempts_per_sec": 629804485.0
+            }
+          },
+          "baseline": {
+            "arguments": [
+              "bench",
+              "--factory",
+              "0x0000000000FFe8B47B3e2130213B802212439497",
+              "--caller",
+              "0x0000000000000000000000000000000000000000",
+              "--codehash",
+              "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+              "--worksize",
+              "71303168",
+              "--zeros",
+              "21",
+              "--warmup-batches",
+              "8",
+              "--batches",
+              "32"
+            ],
+            "wall_seconds": 4.165229584090412,
+            "exit_code": 0,
+            "stdout": "METRIC attempts_per_sec=688759672\n",
+            "stderr": "",
+            "metrics": {
+              "attempts_per_sec": 688759672.0
+            }
+          }
+        },
+        {
+          "baseline": {
+            "arguments": [
+              "bench",
+              "--factory",
+              "0x0000000000FFe8B47B3e2130213B802212439497",
+              "--caller",
+              "0x0000000000000000000000000000000000000000",
+              "--codehash",
+              "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+              "--worksize",
+              "71303168",
+              "--zeros",
+              "21",
+              "--warmup-batches",
+              "8",
+              "--batches",
+              "32"
+            ],
+            "wall_seconds": 4.245442875195295,
+            "exit_code": 0,
+            "stdout": "METRIC attempts_per_sec=672677899\n",
+            "stderr": "",
+            "metrics": {
+              "attempts_per_sec": 672677899.0
+            }
+          },
+          "candidate": {
+            "arguments": [
+              "bench",
+              "--factory",
+              "0x0000000000FFe8B47B3e2130213B802212439497",
+              "--caller",
+              "0x0000000000000000000000000000000000000000",
+              "--codehash",
+              "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+              "--worksize",
+              "71303168",
+              "--zeros",
+              "21",
+              "--warmup-batches",
+              "8",
+              "--batches",
+              "32"
+            ],
+            "wall_seconds": 4.601026250049472,
+            "exit_code": 0,
+            "stdout": "METRIC attempts_per_sec=622553152\n",
+            "stderr": "",
+            "metrics": {
+              "attempts_per_sec": 622553152.0
+            }
+          }
+        },
+        {
+          "candidate": {
+            "arguments": [
+              "bench",
+              "--factory",
+              "0x0000000000FFe8B47B3e2130213B802212439497",
+              "--caller",
+              "0x0000000000000000000000000000000000000000",
+              "--codehash",
+              "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+              "--worksize",
+              "71303168",
+              "--zeros",
+              "21",
+              "--warmup-batches",
+              "8",
+              "--batches",
+              "32"
+            ],
+            "wall_seconds": 4.575553957838565,
+            "exit_code": 0,
+            "stdout": "METRIC attempts_per_sec=629956038\n",
+            "stderr": "",
+            "metrics": {
+              "attempts_per_sec": 629956038.0
+            }
+          },
+          "baseline": {
+            "arguments": [
+              "bench",
+              "--factory",
+              "0x0000000000FFe8B47B3e2130213B802212439497",
+              "--caller",
+              "0x0000000000000000000000000000000000000000",
+              "--codehash",
+              "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+              "--worksize",
+              "71303168",
+              "--zeros",
+              "21",
+              "--warmup-batches",
+              "8",
+              "--batches",
+              "32"
+            ],
+            "wall_seconds": 4.1813348340801895,
+            "exit_code": 0,
+            "stdout": "METRIC attempts_per_sec=686400347\n",
+            "stderr": "",
+            "metrics": {
+              "attempts_per_sec": 686400347.0
+            }
+          }
+        },
+        {
+          "baseline": {
+            "arguments": [
+              "bench",
+              "--factory",
+              "0x0000000000FFe8B47B3e2130213B802212439497",
+              "--caller",
+              "0x0000000000000000000000000000000000000000",
+              "--codehash",
+              "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+              "--worksize",
+              "71303168",
+              "--zeros",
+              "21",
+              "--warmup-batches",
+              "8",
+              "--batches",
+              "32"
+            ],
+            "wall_seconds": 4.278636250179261,
+            "exit_code": 0,
+            "stdout": "METRIC attempts_per_sec=668137021\n",
+            "stderr": "",
+            "metrics": {
+              "attempts_per_sec": 668137021.0
+            }
+          },
+          "candidate": {
+            "arguments": [
+              "bench",
+              "--factory",
+              "0x0000000000FFe8B47B3e2130213B802212439497",
+              "--caller",
+              "0x0000000000000000000000000000000000000000",
+              "--codehash",
+              "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+              "--worksize",
+              "71303168",
+              "--zeros",
+              "21",
+              "--warmup-batches",
+              "8",
+              "--batches",
+              "32"
+            ],
+            "wall_seconds": 4.772691334132105,
+            "exit_code": 0,
+            "stdout": "METRIC attempts_per_sec=597813157\n",
+            "stderr": "",
+            "metrics": {
+              "attempts_per_sec": 597813157.0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "preconditioning": {
+        "arguments": [
+          "bench",
+          "--factory",
+          "0x0000000000FFe8B47B3e2130213B802212439497",
+          "--caller",
+          "0x0000000000000000000000000000000000000000",
+          "--codehash",
+          "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+          "--worksize",
+          "71303168",
+          "--zeros",
+          "21",
+          "--warmup-batches",
+          "64",
+          "--batches",
+          "32"
+        ],
+        "wall_seconds": 11.103865375276655,
+        "exit_code": 0,
+        "stdout": "METRIC attempts_per_sec=603370165\n",
+        "stderr": "",
+        "metrics": {
+          "attempts_per_sec": 603370165.0
+        }
+      },
+      "pairs": [
+        {
+          "candidate": {
+            "arguments": [
+              "bench",
+              "--factory",
+              "0x0000000000FFe8B47B3e2130213B802212439497",
+              "--caller",
+              "0x0000000000000000000000000000000000000000",
+              "--codehash",
+              "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+              "--worksize",
+              "71303168",
+              "--zeros",
+              "21",
+              "--warmup-batches",
+              "8",
+              "--batches",
+              "32"
+            ],
+            "wall_seconds": 5.6519173751585186,
+            "exit_code": 0,
+            "stdout": "METRIC attempts_per_sec=518398581\n",
+            "stderr": "",
+            "metrics": {
+              "attempts_per_sec": 518398581.0
+            }
+          },
+          "baseline": {
+            "arguments": [
+              "bench",
+              "--factory",
+              "0x0000000000FFe8B47B3e2130213B802212439497",
+              "--caller",
+              "0x0000000000000000000000000000000000000000",
+              "--codehash",
+              "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+              "--worksize",
+              "71303168",
+              "--zeros",
+              "21",
+              "--warmup-batches",
+              "8",
+              "--batches",
+              "32"
+            ],
+            "wall_seconds": 4.887310083024204,
+            "exit_code": 0,
+            "stdout": "METRIC attempts_per_sec=610541058\n",
+            "stderr": "",
+            "metrics": {
+              "attempts_per_sec": 610541058.0
+            }
+          }
+        },
+        {
+          "baseline": {
+            "arguments": [
+              "bench",
+              "--factory",
+              "0x0000000000FFe8B47B3e2130213B802212439497",
+              "--caller",
+              "0x0000000000000000000000000000000000000000",
+              "--codehash",
+              "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+              "--worksize",
+              "71303168",
+              "--zeros",
+              "21",
+              "--warmup-batches",
+              "8",
+              "--batches",
+              "32"
+            ],
+            "wall_seconds": 4.412098499946296,
+            "exit_code": 0,
+            "stdout": "METRIC attempts_per_sec=650602846\n",
+            "stderr": "",
+            "metrics": {
+              "attempts_per_sec": 650602846.0
+            }
+          },
+          "candidate": {
+            "arguments": [
+              "bench",
+              "--factory",
+              "0x0000000000FFe8B47B3e2130213B802212439497",
+              "--caller",
+              "0x0000000000000000000000000000000000000000",
+              "--codehash",
+              "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+              "--worksize",
+              "71303168",
+              "--zeros",
+              "21",
+              "--warmup-batches",
+              "8",
+              "--batches",
+              "32"
+            ],
+            "wall_seconds": 4.875394083093852,
+            "exit_code": 0,
+            "stdout": "METRIC attempts_per_sec=585823983\n",
+            "stderr": "",
+            "metrics": {
+              "attempts_per_sec": 585823983.0
+            }
+          }
+        },
+        {
+          "candidate": {
+            "arguments": [
+              "bench",
+              "--factory",
+              "0x0000000000FFe8B47B3e2130213B802212439497",
+              "--caller",
+              "0x0000000000000000000000000000000000000000",
+              "--codehash",
+              "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+              "--worksize",
+              "71303168",
+              "--zeros",
+              "21",
+              "--warmup-batches",
+              "8",
+              "--batches",
+              "32"
+            ],
+            "wall_seconds": 5.145326790865511,
+            "exit_code": 0,
+            "stdout": "METRIC attempts_per_sec=553083704\n",
+            "stderr": "",
+            "metrics": {
+              "attempts_per_sec": 553083704.0
+            }
+          },
+          "baseline": {
+            "arguments": [
+              "bench",
+              "--factory",
+              "0x0000000000FFe8B47B3e2130213B802212439497",
+              "--caller",
+              "0x0000000000000000000000000000000000000000",
+              "--codehash",
+              "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+              "--worksize",
+              "71303168",
+              "--zeros",
+              "21",
+              "--warmup-batches",
+              "8",
+              "--batches",
+              "32"
+            ],
+            "wall_seconds": 4.7077275002375245,
+            "exit_code": 0,
+            "stdout": "METRIC attempts_per_sec=606832970\n",
+            "stderr": "",
+            "metrics": {
+              "attempts_per_sec": 606832970.0
+            }
+          }
+        },
+        {
+          "baseline": {
+            "arguments": [
+              "bench",
+              "--factory",
+              "0x0000000000FFe8B47B3e2130213B802212439497",
+              "--caller",
+              "0x0000000000000000000000000000000000000000",
+              "--codehash",
+              "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+              "--worksize",
+              "71303168",
+              "--zeros",
+              "21",
+              "--warmup-batches",
+              "8",
+              "--batches",
+              "32"
+            ],
+            "wall_seconds": 4.848473583348095,
+            "exit_code": 0,
+            "stdout": "METRIC attempts_per_sec=589716398\n",
+            "stderr": "",
+            "metrics": {
+              "attempts_per_sec": 589716398.0
+            }
+          },
+          "candidate": {
+            "arguments": [
+              "bench",
+              "--factory",
+              "0x0000000000FFe8B47B3e2130213B802212439497",
+              "--caller",
+              "0x0000000000000000000000000000000000000000",
+              "--codehash",
+              "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+              "--worksize",
+              "71303168",
+              "--zeros",
+              "21",
+              "--warmup-batches",
+              "8",
+              "--batches",
+              "32"
+            ],
+            "wall_seconds": 6.118506291881204,
+            "exit_code": 0,
+            "stdout": "METRIC attempts_per_sec=455774249\n",
+            "stderr": "",
+            "metrics": {
+              "attempts_per_sec": 455774249.0
+            }
+          }
+        },
+        {
+          "candidate": {
+            "arguments": [
+              "bench",
+              "--factory",
+              "0x0000000000FFe8B47B3e2130213B802212439497",
+              "--caller",
+              "0x0000000000000000000000000000000000000000",
+              "--codehash",
+              "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+              "--worksize",
+              "71303168",
+              "--zeros",
+              "21",
+              "--warmup-batches",
+              "8",
+              "--batches",
+              "32"
+            ],
+            "wall_seconds": 6.482021875213832,
+            "exit_code": 0,
+            "stdout": "METRIC attempts_per_sec=436103162\n",
+            "stderr": "",
+            "metrics": {
+              "attempts_per_sec": 436103162.0
+            }
+          },
+          "baseline": {
+            "arguments": [
+              "bench",
+              "--factory",
+              "0x0000000000FFe8B47B3e2130213B802212439497",
+              "--caller",
+              "0x0000000000000000000000000000000000000000",
+              "--codehash",
+              "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+              "--worksize",
+              "71303168",
+              "--zeros",
+              "21",
+              "--warmup-batches",
+              "8",
+              "--batches",
+              "32"
+            ],
+            "wall_seconds": 6.601275499910116,
+            "exit_code": 0,
+            "stdout": "METRIC attempts_per_sec=432498103\n",
+            "stderr": "",
+            "metrics": {
+              "attempts_per_sec": 432498103.0
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "mining": {
+    "baseline": [
+      {
+        "arguments": [
+          "mine",
+          "--factory",
+          "0x0000000000FFe8B47B3e2130213B802212439497",
+          "--caller",
+          "0x0000000000000000000000000000000000000000",
+          "--codehash",
+          "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+          "--worksize",
+          "71303168",
+          "--zeros",
+          "1",
+          "--min-runtime-secs",
+          "2",
+          "--abi"
+        ],
+        "wall_seconds": 2.741177833173424,
+        "exit_code": 0,
+        "stdout": "0x00000000000000000000000000000000000000006eba1b19160a0000b38198870000000000000000000000003f08c400dcb7281107746d6700389dd1e4e8bfc30000000000000000000000000000000000000000000000000000000000000002\n",
+        "stderr": "",
+        "metrics": {}
+      },
+      {
+        "arguments": [
+          "mine",
+          "--factory",
+          "0x0000000000FFe8B47B3e2130213B802212439497",
+          "--caller",
+          "0x0000000000000000000000000000000000000000",
+          "--codehash",
+          "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+          "--worksize",
+          "71303168",
+          "--zeros",
+          "21",
+          "--min-runtime-secs",
+          "2",
+          "--abi",
+          "--max-runtime-secs",
+          "3"
+        ],
+        "wall_seconds": 4.256190165877342,
+        "exit_code": 2,
+        "stdout": "0x0000000000000000000000000000000000000000ebf32c7d7018000041e5396200000000000000000000000017d20039e4aba97955f4f749ccf33fb599bd00500000000000000000000000000000000000000000000000000000000000000002\n",
+        "stderr": "",
+        "metrics": {}
+      }
+    ],
+    "candidate": [
+      {
+        "arguments": [
+          "mine",
+          "--factory",
+          "0x0000000000FFe8B47B3e2130213B802212439497",
+          "--caller",
+          "0x0000000000000000000000000000000000000000",
+          "--codehash",
+          "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+          "--worksize",
+          "71303168",
+          "--zeros",
+          "1",
+          "--min-runtime-secs",
+          "2",
+          "--abi"
+        ],
+        "wall_seconds": 3.1369067919440567,
+        "exit_code": 0,
+        "stdout": "0x00000000000000000000000000000000000000005026ad102c0900001cbc6ca70000000000000000000000007bd59aeb313498fd85816700cd2d2776bf00e1720000000000000000000000000000000000000000000000000000000000000002\n",
+        "stderr": "",
+        "metrics": {}
+      },
+      {
+        "arguments": [
+          "mine",
+          "--factory",
+          "0x0000000000FFe8B47B3e2130213B802212439497",
+          "--caller",
+          "0x0000000000000000000000000000000000000000",
+          "--codehash",
+          "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+          "--worksize",
+          "71303168",
+          "--zeros",
+          "21",
+          "--min-runtime-secs",
+          "2",
+          "--abi",
+          "--max-runtime-secs",
+          "3"
+        ],
+        "wall_seconds": 4.516735749784857,
+        "exit_code": 2,
+        "stdout": "0x0000000000000000000000000000000000000000ac7feafa391c00009656cc10000000000000000000000000dae85fc2ca86705a00629ede3d1f5f3ac50080c70000000000000000000000000000000000000000000000000000000000000002\n",
+        "stderr": "",
+        "metrics": {}
+      }
+    ]
+  },
+  "startup": {
+    "baseline": {
+      "arguments": [
+        "bench",
+        "--factory",
+        "0x0000000000FFe8B47B3e2130213B802212439497",
+        "--caller",
+        "0x0000000000000000000000000000000000000000",
+        "--codehash",
+        "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+        "--worksize",
+        "71303168",
+        "--zeros",
+        "21",
+        "--warmup-batches",
+        "0",
+        "--batches",
+        "1"
+      ],
+      "wall_seconds": 0.21535745821893215,
+      "exit_code": 0,
+      "stdout": "METRIC attempts_per_sec=445518918\n",
+      "stderr": "",
+      "metrics": {
+        "attempts_per_sec": 445518918.0
+      },
+      "untimed_wall_seconds": 0.055312249992780005
+    },
+    "candidate": {
+      "arguments": [
+        "bench",
+        "--factory",
+        "0x0000000000FFe8B47B3e2130213B802212439497",
+        "--caller",
+        "0x0000000000000000000000000000000000000000",
+        "--codehash",
+        "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107",
+        "--worksize",
+        "71303168",
+        "--zeros",
+        "21",
+        "--warmup-batches",
+        "0",
+        "--batches",
+        "1"
+      ],
+      "wall_seconds": 0.255491207819432,
+      "exit_code": 0,
+      "stdout": "METRIC attempts_per_sec=368475638\n",
+      "stderr": "",
+      "metrics": {
+        "attempts_per_sec": 368475638.0
+      },
+      "untimed_wall_seconds": 0.06198270780836751
+    }
+  },
+  "summary": {
+    "set_median_paired_gains": [
+      -0.08223234333533924,
+      -0.09956744486789415
+    ],
+    "median_paired_gain": -0.08708478829172683,
+    "paired_bootstrap_95_interval": [
+      -0.10525365574676038,
+      -0.07680553107497834
+    ],
+    "bootstrap_samples": 20000,
+    "bootstrap_seed": 71303168,
+    "passes_gain_gate": false
+  },
+  "completed": true
+}

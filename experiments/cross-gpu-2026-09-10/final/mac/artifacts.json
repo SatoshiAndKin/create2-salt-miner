@@ -1,0 +1,25 @@
+{
+  "source_commit": "76f24fe8763870d9ea5e9bbf84311f307af15ab7",
+  "corrected_kernel_commit": "8fced24",
+  "source_archive_sha256": "948f5bdc76e13c236b7e4ccc750a004221a5d98eb332ae40857eaa2ae7a23985",
+  "lockfile_sha256": "46f97e4c4069855237a9647910242ec83968bac965d5cda746d9560ef97843df",
+  "measurement_script_sha256": "fd93977c13086c762e39209bdb8b726331080cde64a41272a6602a697b65b4a3",
+  "rustflags": "-C target-cpu=native",
+  "target": "aarch64-apple-darwin",
+  "build_root": "/Users/bryan/code/create2-salt-miner/target/cross-gpu/release-final",
+  "kernels_embedded_in_each_binary": true,
+  "variants": {
+    "baseline": {
+      "kernel_sha256": "0b6501462a2c040a8bd73c0206708721201973b102d79c8db9d7230fbda4370f",
+      "binary_sha256": "484ee126cf5a6f90a3fc2e10766353f87a20baa385db8824b16b2b814094ad17",
+      "binary-pgo_sha256": "1cd245906cc78d3dd3afc842c7d1cf11ab724b36d938d3ead00932d304dda298",
+      "profile_sha256": "21ecd59e54f1ca3327be81fd25b92fb02fab3c58fe340d2058c59d7b6afc5ad0"
+    },
+    "final": {
+      "kernel_sha256": "67542e2239b923e1b9f6e0ba8871e2776d290bfe0d8b578a6db5508258147fef",
+      "binary_sha256": "7c1b0f5cade6cd296c7720110e8d8a10ed44a1b9f4296b541b3d5fe035e3677e",
+      "binary-pgo_sha256": "005cbf7a7fa56f38b6f5a9a36a7131915249dcae9f44497c5b2c53f9dcd63eec",
+      "profile_sha256": "ec9c8d88180c458d5d62f9ab6efe6a314cd6515b198877e75ea96258e4dc783c"
+    }
+  }
+}

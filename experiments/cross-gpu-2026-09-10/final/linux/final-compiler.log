@@ -1,0 +1,6 @@
+Kernel source: /tmp/salty-benchmark-20260910-E6rlwI/release-final/final-keccak256.cl
+(): Warning: Function hashMessage is a kernel, so overriding noinline attribute. The function may be inlined when called.
+WorkGroupSize: 256
+PreferredWorkGroupSizeMultiple: 32
+LocalMemSize: 1
+PrivateMemSize: 0

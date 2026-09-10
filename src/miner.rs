@@ -1,13 +1,15 @@
 use alloy_primitives::{Address, FixedBytes, Keccak256, hex};
 use eyre::{Result, WrapErr};
-#[cfg(not(target_os = "macos"))]
 use indicatif::HumanDuration;
 #[cfg(not(target_os = "macos"))]
 use ocl::{Buffer, Context, Device, MemFlags, Platform, ProQue, Program, Queue};
 #[cfg(not(target_os = "macos"))]
 use rand::RngExt;
 use std::fmt::Write;
-use std::time::{Duration, Instant};
+use std::process::ExitCode;
+use std::time::Duration;
+#[cfg(not(target_os = "macos"))]
+use std::time::Instant;
 
 use crate::{AppConfig, Display};
 
@@ -24,16 +26,67 @@ pub struct MiningOutcome {
     pub salt: [u8; 32],
     pub address: Address,
     pub score: usize,
+}
+
+#[derive(Debug)]
+pub struct MiningRun {
+    pub outcome: Option<MiningOutcome>,
     pub runtime: Duration,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MiningStop {
     FirstMatch,
     Timed {
         min_runtime: Option<Duration>,
         max_runtime: Option<Duration>,
     },
+}
+
+impl MiningStop {
+    pub fn from_limits(min_runtime_secs: Option<u64>, max_runtime_secs: Option<u64>) -> Self {
+        if min_runtime_secs.is_none() && max_runtime_secs.is_none() {
+            Self::FirstMatch
+        } else {
+            Self::Timed {
+                min_runtime: min_runtime_secs.map(Duration::from_secs),
+                max_runtime: max_runtime_secs.map(Duration::from_secs),
+            }
+        }
+    }
+
+    fn initial_threshold(self, target: usize) -> usize {
+        match self {
+            Self::Timed {
+                max_runtime: Some(_),
+                ..
+            } => 0,
+            _ => target,
+        }
+    }
+
+    /// Call at a mining batch boundary, after collecting any pending result.
+    fn reached(self, elapsed: Duration, best_score: Option<usize>, target: usize) -> bool {
+        let qualified = best_score.is_some_and(|score| score >= target);
+        match self {
+            Self::FirstMatch => qualified,
+            Self::Timed {
+                min_runtime,
+                max_runtime,
+            } => {
+                max_runtime.is_some_and(|maximum| elapsed >= maximum)
+                    || (min_runtime.is_none_or(|minimum| elapsed >= minimum) && qualified)
+            }
+        }
+    }
+}
+
+pub(crate) fn mining_exit_code(score: Option<usize>, target: usize) -> ExitCode {
+    if score.is_some_and(|score| score >= target) {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(2)
+    }
 }
 
 /// Given a `config` object with a factory address, a caller address, a keccak-256 hash
@@ -56,37 +109,14 @@ pub enum MiningStop {
 ///
 /// This method is highly experimental and could certainly use further optimization.
 /// Contributions are welcome as always!
-pub fn start_miner(config: AppConfig, display: Option<Display>) -> Result<()> {
-    #[cfg(target_os = "macos")]
-    {
-        metal::start_miner(config, display)
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        start_opencl_miner(config, display)
-    }
-}
-
-#[cfg(not(target_os = "macos"))]
-fn start_opencl_miner(config: AppConfig, mut display: Option<Display>) -> Result<()> {
-    if !config.abi {
-        println!("Preparing OpenCL Miner...",);
-    }
-
+pub fn start_miner(config: AppConfig, display: Option<Display>) -> Result<ExitCode> {
     if config.min_runtime_secs.is_some() || config.max_runtime_secs.is_some() {
         let abi = config.abi;
-        let target_zeros = config.zeros;
-        let min_runtime = config.min_runtime_secs.map(Duration::from_secs);
-        let max_runtime = config.max_runtime_secs.map(Duration::from_secs);
-
-        let outcome = mine_once_opencl(
-            config,
-            MiningStop::Timed {
-                min_runtime,
-                max_runtime,
-            },
-        )?;
-        if let Some(outcome) = outcome {
+        let target = config.zeros;
+        let stop = MiningStop::from_limits(config.min_runtime_secs, config.max_runtime_secs);
+        let run = mine_once(config, stop)?;
+        let exit_code = mining_exit_code(run.outcome.as_ref().map(|outcome| outcome.score), target);
+        if let Some(outcome) = run.outcome {
             if abi {
                 print_abi_encoded_result(&outcome.salt, outcome.address.as_slice(), outcome.score);
             } else {
@@ -95,16 +125,31 @@ fn start_opencl_miner(config: AppConfig, mut display: Option<Display>) -> Result
                     hex::encode(outcome.salt),
                     outcome.address,
                     outcome.score,
-                    HumanDuration(outcome.runtime),
+                    HumanDuration(run.runtime),
                 );
             }
-            if outcome.score < target_zeros {
-                std::process::exit(2);
-            }
-        } else {
-            std::process::exit(2);
+        } else if !abi {
+            println!(
+                "No candidate found (Runtime: {})",
+                HumanDuration(run.runtime)
+            );
         }
-        return Ok(());
+        return Ok(exit_code);
+    }
+    #[cfg(target_os = "macos")]
+    {
+        metal::start_miner(config, display).map(|()| ExitCode::SUCCESS)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        start_opencl_miner(config, display).map(|()| ExitCode::SUCCESS)
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn start_opencl_miner(config: AppConfig, mut display: Option<Display>) -> Result<()> {
+    if !config.abi {
+        println!("Preparing OpenCL Miner...",);
     }
 
     let start = Instant::now();
@@ -322,7 +367,7 @@ fn benchmark_opencl_miner(config: AppConfig, warmup_batches: u64, batches: u64) 
     let queue = Queue::new(&context, device, None).wrap_err("failed to create OpenCL queue")?;
     let program_queue = ProQue::new(context, queue, program, Some(worksize));
 
-    let solutions = vec![0_u64; 1];
+    let mut solutions = vec![0_u64; 1];
     let solutions_buffer = Buffer::builder()
         .queue(program_queue.queue().clone())
         .flags(MemFlags::new().write_only())
@@ -334,7 +379,10 @@ fn benchmark_opencl_miner(config: AppConfig, warmup_batches: u64, batches: u64) 
         .kernel_builder("hashMessage")
         .arg_named("message", 0_u32)
         .arg_named("nonce", 0_u32)
-        .arg_named("min_zeros", 21_u32)
+        .arg_named(
+            "min_zeros",
+            u32::try_from(config.zeros).wrap_err("zero-byte target does not fit in u32")?,
+        )
         .arg_named("solutions", &solutions_buffer)
         .build()
         .wrap_err("failed to build OpenCL kernel")?;
@@ -348,6 +396,10 @@ fn benchmark_opencl_miner(config: AppConfig, warmup_batches: u64, batches: u64) 
         .queue()
         .finish()
         .wrap_err("failed to finish warmup")?;
+    solutions_buffer
+        .write(&solutions)
+        .enq()
+        .wrap_err("failed to clear benchmark solutions")?;
 
     let start = Instant::now();
     for _ in 0..batches {
@@ -361,12 +413,16 @@ fn benchmark_opencl_miner(config: AppConfig, warmup_batches: u64, batches: u64) 
         .queue()
         .finish()
         .wrap_err("failed to finish benchmark")?;
+    solutions_buffer
+        .read(&mut solutions)
+        .enq()
+        .wrap_err("failed to read benchmark solutions")?;
     let elapsed_ns = start.elapsed().as_nanos();
     let attempts = u128::from(worksize) * u128::from(batches);
     Ok(attempts * 1_000_000_000 / elapsed_ns)
 }
 
-pub fn mine_once(config: AppConfig, stop: MiningStop) -> Result<Option<MiningOutcome>> {
+pub fn mine_once(config: AppConfig, stop: MiningStop) -> Result<MiningRun> {
     #[cfg(target_os = "macos")]
     {
         metal::mine_once(config, stop)
@@ -378,8 +434,7 @@ pub fn mine_once(config: AppConfig, stop: MiningStop) -> Result<Option<MiningOut
 }
 
 #[cfg(not(target_os = "macos"))]
-fn mine_once_opencl(config: AppConfig, stop: MiningStop) -> Result<Option<MiningOutcome>> {
-    let start = Instant::now();
+fn mine_once_opencl(config: AppConfig, stop: MiningStop) -> Result<MiningRun> {
     let worksize = config.worksize;
 
     let platform = Platform::new(
@@ -403,11 +458,7 @@ fn mine_once_opencl(config: AppConfig, stop: MiningStop) -> Result<Option<Mining
     let program_queue = ProQue::new(context, queue, program, Some(worksize));
 
     let mut rng = rand::rng();
-    let mut next_zeros = if config.max_runtime_secs.is_some() {
-        0
-    } else {
-        config.zeros
-    };
+    let mut next_zeros = stop.initial_threshold(config.zeros);
     let mut best_outcome = None;
 
     let mut salt = FixedBytes::<4>::random();
@@ -430,6 +481,7 @@ fn mine_once_opencl(config: AppConfig, stop: MiningStop) -> Result<Option<Mining
         .build()
         .wrap_err("failed to build OpenCL kernel")?;
 
+    let start = Instant::now();
     loop {
         salt = FixedBytes::<4>::random();
         kernel
@@ -467,29 +519,24 @@ fn mine_once_opencl(config: AppConfig, stop: MiningStop) -> Result<Option<Mining
                 break;
             }
 
-            if let MiningStop::Timed {
-                min_runtime,
-                max_runtime,
-            } = stop
-            {
-                let elapsed = start.elapsed();
-                let past_min = min_runtime.is_none_or(|min| elapsed >= min);
-                let past_max = max_runtime.is_some_and(|max| elapsed >= max);
-
-                if (past_min && best_outcome.is_some()) || past_max {
-                    if pending_batches > 0 {
-                        solutions_buffer
-                            .read(&mut solutions)
-                            .enq()
-                            .wrap_err("failed to read OpenCL solutions")?;
-
-                        if solutions[0] != 0 {
-                            break;
-                        }
+            if stop.reached(
+                start.elapsed(),
+                best_outcome.as_ref().map(|best: &MiningOutcome| best.score),
+                config.zeros,
+            ) {
+                if pending_batches > 0 {
+                    solutions_buffer
+                        .read(&mut solutions)
+                        .enq()
+                        .wrap_err("failed to read OpenCL solutions")?;
+                    if solutions[0] != 0 {
+                        break;
                     }
-
-                    return Ok(best_outcome);
                 }
+                return Ok(MiningRun {
+                    outcome: best_outcome,
+                    runtime: start.elapsed(),
+                });
             }
 
             nonce[0] += 1;
@@ -503,33 +550,30 @@ fn mine_once_opencl(config: AppConfig, stop: MiningStop) -> Result<Option<Mining
                 continue;
             }
 
-            let outcome = mining_outcome(&config, &salt, solution, start)?;
-
-            match stop {
-                MiningStop::FirstMatch => return Ok(Some(outcome)),
-                MiningStop::Timed {
-                    min_runtime,
-                    max_runtime,
-                } => {
-                    if best_outcome
-                        .as_ref()
-                        .is_none_or(|best: &MiningOutcome| outcome.score > best.score)
-                    {
-                        next_zeros = outcome.score + 1;
-                        kernel
-                            .set_arg("min_zeros", next_zeros as u32)
-                            .wrap_err("failed to set min_zeros kernel arg")?;
-                        best_outcome = Some(outcome);
-                    }
-
-                    let elapsed = start.elapsed();
-                    let past_min = min_runtime.is_none_or(|min| elapsed >= min);
-                    let past_max = max_runtime.is_some_and(|max| elapsed >= max);
-
-                    if (past_min && best_outcome.is_some()) || past_max {
-                        return Ok(best_outcome);
-                    }
-                }
+            let outcome = mining_outcome(&config, &salt, solution)?;
+            eyre::ensure!(
+                outcome.score >= next_zeros,
+                "OpenCL returned a solution below the requested score"
+            );
+            if best_outcome
+                .as_ref()
+                .is_none_or(|best| outcome.score > best.score)
+            {
+                next_zeros = outcome.score + 1;
+                kernel
+                    .set_arg("min_zeros", next_zeros as u32)
+                    .wrap_err("failed to set min_zeros kernel arg")?;
+                best_outcome = Some(outcome);
+            }
+            if stop.reached(
+                start.elapsed(),
+                best_outcome.as_ref().map(|best| best.score),
+                config.zeros,
+            ) {
+                return Ok(MiningRun {
+                    outcome: best_outcome,
+                    runtime: start.elapsed(),
+                });
             }
         }
     }
@@ -539,7 +583,6 @@ pub(super) fn mining_outcome(
     config: &AppConfig,
     salt: &FixedBytes<4>,
     solution: u64,
-    start: Instant,
 ) -> Result<MiningOutcome> {
     let solution = solution.to_le_bytes();
 
@@ -571,7 +614,6 @@ pub(super) fn mining_outcome(
         salt: create2_salt,
         address,
         score,
-        runtime: start.elapsed(),
     })
 }
 
@@ -607,4 +649,155 @@ fn mk_kernel_src(config: &AppConfig) -> String {
     src.push_str(KERNEL_SRC);
 
     src
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    #[ignore = "requires an OpenCL device"]
+    fn opencl_scores_match_cpu_at_nonce_boundaries() -> Result<()> {
+        let config = AppConfig {
+            factory: [0x11; 20],
+            caller: [0x22; 20],
+            codehash: [0x33; 32],
+            worksize: 1,
+            zeros: 0,
+            one: true,
+            abi: true,
+            min_runtime_secs: None,
+            max_runtime_secs: None,
+        };
+        let queue = ProQue::builder()
+            .src(mk_kernel_src(&config))
+            .dims(1_usize)
+            .build()?;
+        let solutions = Buffer::<u64>::builder()
+            .queue(queue.queue().clone())
+            .len(1)
+            .build()?;
+        let kernel = queue
+            .kernel_builder("hashMessage")
+            .arg_named("message", 0_u32)
+            .arg_named("nonce", 0_u32)
+            .arg_named("min_zeros", 0_u32)
+            .arg(&solutions)
+            .build()?;
+        for tail in [0_u32, 0x1234_5678, u32::MAX] {
+            let salt = FixedBytes::from(tail.to_le_bytes());
+            let qualifying_nonce = (1_u64..100_000)
+                .find(|&nonce| mining_outcome(&config, &salt, nonce).unwrap().score >= 2)
+                .expect("fixed workload has a nonce with two zero bytes");
+            // Exercise both words and the byte split used by packed state setup.
+            for nonce in [
+                0,
+                1,
+                0x00ff_ffff,
+                0x0100_0000,
+                u64::from(u32::MAX),
+                1_u64 << 32,
+                u64::MAX - 1,
+                u64::MAX,
+                qualifying_nonce,
+            ] {
+                let reference = mining_outcome(&config, &salt, nonce)?;
+                kernel.set_arg("message", tail)?;
+                kernel.set_arg("nonce", (nonce >> 32) as u32)?;
+                for threshold in 0..=reference.score + 1 {
+                    // A different initial word distinguishes no write from a
+                    // matching zero nonce without changing the kernel contract.
+                    let initial = nonce.wrapping_add(1);
+                    solutions.write(&[initial][..]).enq()?;
+                    kernel.set_arg("min_zeros", threshold as u32)?;
+                    unsafe {
+                        kernel
+                            .cmd()
+                            .global_work_offset(nonce as u32 as usize)
+                            .enq()?;
+                    }
+                    let mut actual = [initial];
+                    solutions.read(&mut actual[..]).enq()?;
+                    let expected = if reference.score >= threshold {
+                        nonce
+                    } else {
+                        initial
+                    };
+                    assert_eq!(
+                        actual[0], expected,
+                        "tail {tail}, nonce {nonce}, threshold {threshold}"
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn stop_requires_target_and_minimum_before_maximum() {
+        let stop = MiningStop::from_limits(Some(10), Some(20));
+        for score in [None, Some(0), Some(5)] {
+            assert!(!stop.reached(Duration::from_secs(10), score, 6));
+            assert!(!stop.reached(Duration::from_secs(19), score, 6));
+        }
+        for score in [Some(6), Some(7)] {
+            assert!(!stop.reached(Duration::from_millis(9_999), score, 6));
+            assert!(stop.reached(Duration::from_secs(10), score, 6));
+        }
+    }
+
+    #[test]
+    fn maximum_stops_with_fallback_or_no_candidate_and_overrides_minimum() {
+        for minimum in [None, Some(10), Some(30)] {
+            let stop = MiningStop::from_limits(minimum, Some(20));
+            for score in [None, Some(0), Some(5), Some(6)] {
+                assert!(stop.reached(Duration::from_secs(20), score, 6));
+            }
+            assert!(!stop.reached(Duration::from_millis(19_999), Some(5), 6));
+        }
+        assert!(MiningStop::from_limits(Some(30), Some(0)).reached(Duration::ZERO, None, 6));
+    }
+
+    #[test]
+    fn absent_minimum_adds_no_delay_but_requires_qualification() {
+        for stop in [
+            MiningStop::FirstMatch,
+            MiningStop::from_limits(None, Some(20)),
+        ] {
+            assert!(!stop.reached(Duration::ZERO, None, 6));
+            assert!(!stop.reached(Duration::ZERO, Some(5), 6));
+            assert!(stop.reached(Duration::ZERO, Some(6), 6));
+        }
+        let stop = MiningStop::from_limits(Some(10), None);
+        assert!(!stop.reached(Duration::from_secs(1_000), None, 6));
+        assert!(!stop.reached(Duration::from_secs(1_000), Some(5), 6));
+        assert!(stop.reached(Duration::from_secs(10), Some(6), 6));
+    }
+
+    #[test]
+    fn stop_mode_owns_fallback_threshold() {
+        assert_eq!(MiningStop::FirstMatch.initial_threshold(6), 6);
+        assert_eq!(
+            MiningStop::from_limits(Some(10), None).initial_threshold(6),
+            6
+        );
+        assert_eq!(
+            MiningStop::from_limits(None, Some(20)).initial_threshold(6),
+            0
+        );
+        assert_eq!(
+            MiningStop::from_limits(Some(30), Some(20)).initial_threshold(6),
+            0
+        );
+    }
+
+    #[test]
+    fn mining_exit_status_requires_target() {
+        for score in [None, Some(0), Some(5)] {
+            assert_eq!(mining_exit_code(score, 6), ExitCode::from(2));
+        }
+        assert_eq!(mining_exit_code(Some(6), 6), ExitCode::SUCCESS);
+        assert_eq!(mining_exit_code(Some(7), 6), ExitCode::SUCCESS);
+    }
 }

@@ -1,0 +1,4 @@
+windows-cross	Package the native Windows training executable	2026-09-10T12:58:19.0442717Z error[E0463]: can't find crate for `profiler_builtins`
+linux	Validate Rust and native OpenCL mining	2026-09-10T12:58:35.1599085Z      Summary [  23.833s] 32 tests run: 32 passed, 0 skipped
+linux	Build with a fresh Linux PGO profile	2026-09-10T13:06:04.3086478Z Total functions: 10245
+linux	Build with a fresh Linux PGO profile	2026-09-10T13:06:04.3087278Z Maximum function count: 1020

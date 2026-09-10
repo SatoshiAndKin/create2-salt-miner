@@ -1,0 +1,76 @@
+   Compiling salty v0.3.0 (/tmp/salty-benchmark-20260910-E6rlwI/source)
+    Finished `release` profile [optimized] target(s) in 4.37s
+     Running `/tmp/salty-benchmark-20260910-E6rlwI/final-build/x86_64-unknown-linux-gnu/release/examples/opencl-inspect /tmp/salty-benchmark-20260910-E6rlwI/baseline-keccak256.cl /tmp/salty-benchmark-20260910-E6rlwI/builtin-rotate-keccak256.cl /tmp/salty-benchmark-20260910-E6rlwI/compiler-unroll-keccak256.cl /tmp/salty-benchmark-20260910-E6rlwI/final-keccak256.cl /tmp/salty-benchmark-20260910-E6rlwI/packed-state-keccak256.cl /tmp/salty-benchmark-20260910-E6rlwI/partial-only-keccak256.cl /tmp/salty-benchmark-20260910-E6rlwI/rotation-only-keccak256.cl /tmp/salty-benchmark-20260910-E6rlwI/union-packed-keccak256.cl /tmp/salty-benchmark-20260910-E6rlwI/union-rotate-keccak256.cl /tmp/salty-benchmark-20260910-E6rlwI/unroll8-keccak256.cl /tmp/salty-benchmark-20260910-E6rlwI/word-score-keccak256.cl`
+Kernel source: /tmp/salty-benchmark-20260910-E6rlwI/baseline-keccak256.cl
+
+WorkGroupSize: 256
+PreferredWorkGroupSizeMultiple: 32
+LocalMemSize: 1
+PrivateMemSize: 0
+Kernel source: /tmp/salty-benchmark-20260910-E6rlwI/builtin-rotate-keccak256.cl
+
+WorkGroupSize: 256
+PreferredWorkGroupSizeMultiple: 32
+LocalMemSize: 1
+PrivateMemSize: 0
+Kernel source: /tmp/salty-benchmark-20260910-E6rlwI/compiler-unroll-keccak256.cl
+
+WorkGroupSize: 256
+PreferredWorkGroupSizeMultiple: 32
+LocalMemSize: 1
+PrivateMemSize: 0
+Kernel source: /tmp/salty-benchmark-20260910-E6rlwI/final-keccak256.cl
+
+WorkGroupSize: 256
+PreferredWorkGroupSizeMultiple: 32
+LocalMemSize: 1
+PrivateMemSize: 0
+Kernel source: /tmp/salty-benchmark-20260910-E6rlwI/packed-state-keccak256.cl
+
+WorkGroupSize: 256
+PreferredWorkGroupSizeMultiple: 32
+LocalMemSize: 1
+PrivateMemSize: 0
+Kernel source: /tmp/salty-benchmark-20260910-E6rlwI/partial-only-keccak256.cl
+
+WorkGroupSize: 256
+PreferredWorkGroupSizeMultiple: 32
+LocalMemSize: 1
+PrivateMemSize: 0
+Kernel source: /tmp/salty-benchmark-20260910-E6rlwI/rotation-only-keccak256.cl
+
+WorkGroupSize: 256
+PreferredWorkGroupSizeMultiple: 32
+LocalMemSize: 1
+PrivateMemSize: 0
+Kernel source: /tmp/salty-benchmark-20260910-E6rlwI/union-packed-keccak256.cl
+
+WorkGroupSize: 256
+PreferredWorkGroupSizeMultiple: 32
+LocalMemSize: 1
+PrivateMemSize: 0
+Kernel source: /tmp/salty-benchmark-20260910-E6rlwI/union-rotate-keccak256.cl
+
+WorkGroupSize: 256
+PreferredWorkGroupSizeMultiple: 32
+LocalMemSize: 1
+PrivateMemSize: 0
+Kernel source: /tmp/salty-benchmark-20260910-E6rlwI/unroll8-keccak256.cl
+
+WorkGroupSize: 256
+PreferredWorkGroupSizeMultiple: 32
+LocalMemSize: 1
+PrivateMemSize: 0
+Kernel source: /tmp/salty-benchmark-20260910-E6rlwI/word-score-keccak256.cl
+(): Warning: Function hashMessage is a kernel, so overriding noinline attribute. The function may be inlined when called.
+
+ptxas info    : 0 bytes gmem, 192 bytes cmem[3]
+ptxas info    : Compiling entry function 'hashMessage' for 'sm_75'
+ptxas info    : Function properties for hashMessage
+ptxas         .     0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 71 registers, used 0 barriers, 376 bytes cmem[0]
+ptxas info    : Compile time = 13.998 ms
+WorkGroupSize: 256
+PreferredWorkGroupSizeMultiple: 32
+LocalMemSize: 1
+PrivateMemSize: 0

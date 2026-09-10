@@ -56,6 +56,9 @@ pub struct MineRequest {
     pub worksize: Option<u32>,
     pub zeros: Option<usize>,
     pub min_runtime_secs: Option<u64>,
+    /// Mining seconds before returning the best candidate, even below target.
+    /// Checked at batch boundaries; excludes setup, queue, and network time.
+    pub max_runtime_secs: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -66,6 +69,7 @@ struct NormalizedMineRequest {
     worksize: u32,
     zeros: usize,
     min_runtime_secs: Option<u64>,
+    max_runtime_secs: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -362,7 +366,7 @@ async fn run_claimed_job(
 
     match outcome {
         Ok(outcome) => {
-            let response = mining_response(outcome, normalized);
+            let response = mining_response(outcome);
             insert_cached_response(state, request_key, normalized, &response)?;
             mark_job_succeeded(state, request_key)?;
         }
@@ -394,18 +398,15 @@ async fn wait_for_mining_response(
     }
 }
 
-fn mining_response(
-    outcome: Option<crate::miner::MiningOutcome>,
-    request: &NormalizedMineRequest,
-) -> MineResponse {
-    match outcome {
+fn mining_response(run: crate::miner::MiningRun) -> MineResponse {
+    match run.outcome {
         Some(outcome) => MineResponse {
             cache_hit: false,
             found: true,
             salt: Some(format!("0x{}", hex::encode(outcome.salt))),
             address: Some(outcome.address.to_string()),
             score: Some(outcome.score),
-            runtime_ms: outcome.runtime.as_millis(),
+            runtime_ms: run.runtime.as_millis(),
         },
         None => MineResponse {
             cache_hit: false,
@@ -413,9 +414,7 @@ fn mining_response(
             salt: None,
             address: None,
             score: None,
-            runtime_ms: request
-                .min_runtime_secs
-                .map_or(0, |secs| u128::from(secs) * u128::from(1_000_u16)),
+            runtime_ms: run.runtime.as_millis(),
         },
     }
 }
@@ -430,18 +429,13 @@ impl NormalizedMineRequest {
             zeros: self.zeros,
             one: true,
             abi: false,
-            min_runtime_secs: None,
-            max_runtime_secs: None,
+            min_runtime_secs: self.min_runtime_secs,
+            max_runtime_secs: self.max_runtime_secs,
         })
     }
 
     fn stop_mode(&self) -> MiningStop {
-        self.min_runtime_secs
-            .map(|secs| MiningStop::Timed {
-                min_runtime: Some(std::time::Duration::from_secs(secs)),
-                max_runtime: None,
-            })
-            .unwrap_or(MiningStop::FirstMatch)
+        MiningStop::from_limits(self.min_runtime_secs, self.max_runtime_secs)
     }
 }
 
@@ -460,6 +454,7 @@ fn normalize_request(request: MineRequest) -> Result<NormalizedMineRequest> {
         worksize: request.worksize.unwrap_or(0x4400000_u32),
         zeros: request.zeros.unwrap_or(6_usize),
         min_runtime_secs,
+        max_runtime_secs: request.max_runtime_secs,
     })
 }
 
@@ -556,7 +551,7 @@ fn insert_cached_response(
                 request.codehash,
                 request.worksize,
                 request.zeros as i64,
-                request.min_runtime_secs.map(|secs| secs as i64),
+                request.max_runtime_secs.map(|secs| secs as i64),
                 response_json,
                 created_at as i64
             ],
@@ -686,6 +681,182 @@ fn unix_timestamp() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn request() -> MineRequest {
+        MineRequest {
+            factory: None,
+            caller: format!("0x{}", "22".repeat(20)),
+            codehash: format!("0x{}", "33".repeat(32)),
+            worksize: Some(256),
+            zeros: Some(6),
+            min_runtime_secs: Some(30),
+            max_runtime_secs: Some(20),
+        }
+    }
+
+    fn state() -> ServerState {
+        let connection = Connection::open_in_memory().unwrap();
+        init_cache(&connection).unwrap();
+        ServerState {
+            cache: Arc::new(Mutex::new(connection)),
+            jobs_changed: Arc::new(Notify::new()),
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "requires a native Metal or OpenCL device"]
+    async fn native_queued_maximum_returns_fallback_and_measured_time() -> Result<()> {
+        let state = state();
+        let mut input = request();
+        input.worksize = Some(1_048_576);
+        input.zeros = Some(21);
+        input.min_runtime_secs = None;
+        input.max_runtime_secs = Some(1);
+        let request = normalize_request(input)?;
+        let key = serde_json::to_string(&request)?;
+        enqueue_job(&state, &key, &request)?;
+        assert!(run_next_job(&state).await?);
+        let response = get_cached_response(&state, &key)?.unwrap();
+        assert!(response.found);
+        assert!(response.score.unwrap() < 21);
+        assert!(response.runtime_ms >= 1_000);
+        let salt = decode_fixed::<32>(response.salt.as_deref().unwrap(), "salt")?;
+        let address = alloy_primitives::Address::from_slice(&decode_fixed::<20>(
+            &request.factory,
+            "factory",
+        )?)
+        .create2(salt, decode_fixed::<32>(&request.codehash, "codehash")?);
+        assert_eq!(response.address, Some(address.to_string()));
+        assert_eq!(
+            response.score,
+            Some(address.iter().filter(|&&byte| byte == 0).count())
+        );
+        assert!(claim_next_job(&state)?.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn limits_survive_serialization_normalization_and_queue_restart() -> Result<()> {
+        let wire = serde_json::to_value(request())?;
+        assert_eq!(wire["min_runtime_secs"], 30);
+        assert_eq!(wire["max_runtime_secs"], 20);
+        let request = normalize_request(serde_json::from_value(wire)?)?;
+        let state = state();
+        let key = serde_json::to_string(&request)?;
+        enqueue_job(&state, &key, &request)?;
+        claim_next_job(&state)?.unwrap();
+        requeue_running_jobs(&state.cache.lock().unwrap())?;
+        let (claimed_key, claimed) = claim_next_job(&state)?.unwrap();
+        assert_eq!(claimed_key, key);
+        assert_eq!(claimed.min_runtime_secs, Some(30));
+        assert_eq!(claimed.max_runtime_secs, Some(20));
+        let config = claimed.to_app_config()?;
+        assert_eq!(config.min_runtime_secs, Some(30));
+        assert_eq!(config.max_runtime_secs, Some(20));
+        assert_eq!(
+            claimed.stop_mode(),
+            MiningStop::from_limits(Some(30), Some(20))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn cache_separates_both_limits_and_stores_actual_maximum() -> Result<()> {
+        let state = state();
+        let request = normalize_request(request())?;
+        let key = serde_json::to_string(&request)?;
+        let response = mining_response(crate::miner::MiningRun {
+            outcome: None,
+            runtime: std::time::Duration::from_millis(20_123),
+        });
+        insert_cached_response(&state, &key, &request, &response)?;
+        assert_eq!(
+            get_cached_response(&state, &key)?.unwrap().runtime_ms,
+            20_123
+        );
+        for (minimum, maximum) in [
+            (None, Some(20)),
+            (Some(31), Some(20)),
+            (Some(30), None),
+            (Some(30), Some(21)),
+        ] {
+            let mut other = request.clone();
+            other.min_runtime_secs = minimum;
+            other.max_runtime_secs = maximum;
+            assert!(get_cached_response(&state, &serde_json::to_string(&other)?)?.is_none());
+        }
+        let maximum: i64 = state.cache.lock().unwrap().query_row(
+            "SELECT max_runtime_secs FROM mine_cache WHERE request_key = ?1",
+            [&key],
+            |row| row.get(0),
+        )?;
+        assert_eq!(maximum, 20);
+        Ok(())
+    }
+
+    #[test]
+    fn normalization_preserves_limit_validation_and_absent_limits() -> Result<()> {
+        let mut input = request();
+        input.min_runtime_secs = Some(0);
+        assert_eq!(
+            normalize_request(input.clone()).unwrap_err().to_string(),
+            "min_runtime_secs must be greater than zero"
+        );
+        input.min_runtime_secs = None;
+        input.max_runtime_secs = Some(0);
+        assert_eq!(normalize_request(input.clone())?.max_runtime_secs, Some(0));
+        input.max_runtime_secs = None;
+        assert_eq!(
+            normalize_request(input)?.stop_mode(),
+            MiningStop::FirstMatch
+        );
+        let wire = serde_json::json!({"caller": "0x00", "codehash": "0x00"});
+        let input: MineRequest = serde_json::from_value(wire)?;
+        assert_eq!(input.min_runtime_secs, None);
+        assert_eq!(input.max_runtime_secs, None);
+        Ok(())
+    }
+
+    #[test]
+    fn response_preserves_fallback_and_measured_runtime() {
+        let response = mining_response(crate::miner::MiningRun {
+            outcome: Some(crate::miner::MiningOutcome {
+                salt: [0x44; 32],
+                address: alloy_primitives::Address::from([0x55; 20]),
+                score: 0,
+            }),
+            runtime: std::time::Duration::from_millis(20_123),
+        });
+        assert!(response.found);
+        assert!(!response.cache_hit);
+        assert_eq!(response.score, Some(0));
+        assert_eq!(response.salt, Some(format!("0x{}", "44".repeat(32))));
+        assert_eq!(response.address, Some(format!("0x{}", "55".repeat(20))));
+        assert_eq!(response.runtime_ms, 20_123);
+        let empty = mining_response(crate::miner::MiningRun {
+            outcome: None,
+            runtime: std::time::Duration::from_millis(20_456),
+        });
+        assert!(!empty.found);
+        assert_eq!((empty.salt, empty.address, empty.score), (None, None, None));
+        assert_eq!(empty.runtime_ms, 20_456);
+    }
+
+    #[test]
+    fn api_schema_exposes_both_optional_limits() -> Result<()> {
+        let schema = serde_json::to_value(ApiDoc::openapi())?;
+        let request = &schema["components"]["schemas"]["MineRequest"];
+        for limit in ["min_runtime_secs", "max_runtime_secs"] {
+            assert!(request["properties"].get(limit).is_some());
+            assert!(
+                !request["required"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&serde_json::json!(limit))
+            );
+        }
+        Ok(())
+    }
 
     #[test]
     fn remote_mine_endpoint_appends_mine_to_base_url() {

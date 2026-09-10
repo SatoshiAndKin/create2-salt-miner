@@ -34,8 +34,10 @@
 #include <metal_stdlib>
 using namespace metal;
 #define THREAD thread
+#define CONSTANT constant
 #else
 #define THREAD
+#define CONSTANT __constant
 #endif
 
 #define OPENCL_PLATFORM_UNKNOWN 0
@@ -65,7 +67,27 @@ static inline ulong rol(const ulong x, const uint s) {
   return as_ulong(output);
 }
 #else
-#define rol(x, s) (((x) << s) | ((x) >> (64u - s)))
+static inline ulong rol(const ulong x, const uint s) {
+  nonce_t lanes;
+  lanes.uint64_t = x;
+  const uint lo = lanes.uint32_t[0];
+  const uint hi = lanes.uint32_t[1];
+  uint out_lo;
+  uint out_hi;
+  if (s < 32u) {
+    out_lo = (lo << s) | (hi >> (32u - s));
+    out_hi = (hi << s) | (lo >> (32u - s));
+  } else if (s == 32u) {
+    out_lo = hi;
+    out_hi = lo;
+  } else {
+    out_lo = (hi << (s - 32u)) | (lo >> (64u - s));
+    out_hi = (lo << (s - 32u)) | (hi >> (64u - s));
+  }
+  lanes.uint32_t[0] = out_lo;
+  lanes.uint32_t[1] = out_hi;
+  return lanes.uint64_t;
+}
 #endif
 
 #define rol1(x) rol(x, 1u)
@@ -150,33 +172,39 @@ static inline ulong rol(const ulong x, const uint s) {
   chi();                                                                       \
   iota(x);
 
+CONSTANT ulong round_constants[23] = {
+  0x0000000000000001UL,
+  0x0000000000008082UL,
+  0x800000000000808aUL,
+  0x8000000080008000UL,
+  0x000000000000808bUL,
+  0x0000000080000001UL,
+  0x8000000080008081UL,
+  0x8000000000008009UL,
+  0x000000000000008aUL,
+  0x0000000000000088UL,
+  0x0000000080008009UL,
+  0x000000008000000aUL,
+  0x000000008000808bUL,
+  0x800000000000008bUL,
+  0x8000000000008089UL,
+  0x8000000000008003UL,
+  0x8000000000008002UL,
+  0x8000000000000080UL,
+  0x000000000000800aUL,
+  0x800000008000000aUL,
+  0x8000000080008081UL,
+  0x8000000000008080UL,
+  0x0000000080000001UL,
+};
+
 static inline void keccakf(THREAD ulong *a) {
   ulong b[5];
   ulong t;
 
-  iteration(0x0000000000000001); // iteration 1
-  iteration(0x0000000000008082); // iteration 2
-  iteration(0x800000000000808a); // iteration 3
-  iteration(0x8000000080008000); // iteration 4
-  iteration(0x000000000000808b); // iteration 5
-  iteration(0x0000000080000001); // iteration 6
-  iteration(0x8000000080008081); // iteration 7
-  iteration(0x8000000000008009); // iteration 8
-  iteration(0x000000000000008a); // iteration 9
-  iteration(0x0000000000000088); // iteration 10
-  iteration(0x0000000080008009); // iteration 11
-  iteration(0x000000008000000a); // iteration 12
-  iteration(0x000000008000808b); // iteration 13
-  iteration(0x800000000000008b); // iteration 14
-  iteration(0x8000000000008089); // iteration 15
-  iteration(0x8000000000008003); // iteration 16
-  iteration(0x8000000000008002); // iteration 17
-  iteration(0x8000000000000080); // iteration 18
-  iteration(0x000000000000800a); // iteration 19
-  iteration(0x800000008000000a); // iteration 20
-  iteration(0x8000000080008081); // iteration 21
-  iteration(0x8000000000008080); // iteration 22
-  iteration(0x0000000080000001); // iteration 23
+  for (uint round = 0; round < 23; ++round) {
+    iteration(round_constants[round]);
+  }
 
   // iteration 24 (partial)
 
@@ -211,13 +239,16 @@ static inline void keccakf(THREAD ulong *a) {
 
 static inline bool hasZeroBytes(THREAD uchar const *d,
                                 uint const min_zero_bytes) {
-  uchar zero_bytes = 0;
+  THREAD uint const *words = (THREAD uint const *)d;
+  uint zero_bytes = 0;
+  // Per-byte sums cannot carry into the next byte. A high bit stays zero
+  // exactly when that original byte is zero; count those five word masks.
 #pragma unroll
-  for (uint i = 0; i < 20; ++i) {
-    if (d[i] == 0)
-      ++zero_bytes;
+  for (uint i = 0; i < 5; ++i) {
+    const uint word = words[i];
+    const uint nonzero = ((word & 0x7f7f7f7fu) + 0x7f7f7f7fu) | word;
+    zero_bytes += popcount(~(nonzero | 0x7f7f7f7fu));
   }
-
   return zero_bytes >= min_zero_bytes;
 }
 
@@ -234,127 +265,115 @@ __kernel void hashMessage(uint const salt_tail, uint const nonce_hi,
 #endif
 
   ulong spongeBuffer[25];
-
 #define sponge ((THREAD uchar *)spongeBuffer)
 #define digest (sponge + 12)
-
   nonce_t nonce;
-
-  // write the control character
-  sponge[0] = 0xffu;
-
-  sponge[1] = S_1;
-  sponge[2] = S_2;
-  sponge[3] = S_3;
-  sponge[4] = S_4;
-  sponge[5] = S_5;
-  sponge[6] = S_6;
-  sponge[7] = S_7;
-  sponge[8] = S_8;
-  sponge[9] = S_9;
-  sponge[10] = S_10;
-  sponge[11] = S_11;
-  sponge[12] = S_12;
-  sponge[13] = S_13;
-  sponge[14] = S_14;
-  sponge[15] = S_15;
-  sponge[16] = S_16;
-  sponge[17] = S_17;
-  sponge[18] = S_18;
-  sponge[19] = S_19;
-  sponge[20] = S_20;
-  sponge[21] = S_21;
-  sponge[22] = S_22;
-  sponge[23] = S_23;
-  sponge[24] = S_24;
-  sponge[25] = S_25;
-  sponge[26] = S_26;
-  sponge[27] = S_27;
-  sponge[28] = S_28;
-  sponge[29] = S_29;
-  sponge[30] = S_30;
-  sponge[31] = S_31;
-  sponge[32] = S_32;
-  sponge[33] = S_33;
-  sponge[34] = S_34;
-  sponge[35] = S_35;
-  sponge[36] = S_36;
-  sponge[37] = S_37;
-  sponge[38] = S_38;
-  sponge[39] = S_39;
-  sponge[40] = S_40;
-
-  sponge[41] = salt_tail & 0xffu;
-  sponge[42] = (salt_tail >> 8) & 0xffu;
-  sponge[43] = (salt_tail >> 16) & 0xffu;
-  sponge[44] = salt_tail >> 24;
-
-  // populate the nonce
 #if defined(METAL_BACKEND)
   nonce.uint32_t[0] = global_id;
 #else
   nonce.uint32_t[0] = get_global_id(0);
 #endif
   nonce.uint32_t[1] = nonce_hi;
-
-  // populate the body of the message with the nonce
-  sponge[45] = nonce.uint8_t[0];
-  sponge[46] = nonce.uint8_t[1];
-  sponge[47] = nonce.uint8_t[2];
-  sponge[48] = nonce.uint8_t[3];
-  sponge[49] = nonce.uint8_t[4];
-  sponge[50] = nonce.uint8_t[5];
-  sponge[51] = nonce.uint8_t[6];
-  sponge[52] = nonce.uint8_t[7];
-
-  sponge[53] = S_53;
-  sponge[54] = S_54;
-  sponge[55] = S_55;
-  sponge[56] = S_56;
-  sponge[57] = S_57;
-  sponge[58] = S_58;
-  sponge[59] = S_59;
-  sponge[60] = S_60;
-  sponge[61] = S_61;
-  sponge[62] = S_62;
-  sponge[63] = S_63;
-  sponge[64] = S_64;
-  sponge[65] = S_65;
-  sponge[66] = S_66;
-  sponge[67] = S_67;
-  sponge[68] = S_68;
-  sponge[69] = S_69;
-  sponge[70] = S_70;
-  sponge[71] = S_71;
-  sponge[72] = S_72;
-  sponge[73] = S_73;
-  sponge[74] = S_74;
-  sponge[75] = S_75;
-  sponge[76] = S_76;
-  sponge[77] = S_77;
-  sponge[78] = S_78;
-  sponge[79] = S_79;
-  sponge[80] = S_80;
-  sponge[81] = S_81;
-  sponge[82] = S_82;
-  sponge[83] = S_83;
-  sponge[84] = S_84;
-
-  // begin padding based on message length
-  sponge[85] = 0x01u;
-
-  // fill padding
-#pragma unroll
-  for (int i = 86; i < 135; ++i)
-    sponge[i] = 0;
-
-  // end padding
-  sponge[135] = 0x80u;
-
-  // fill remaining sponge state with zeroes
-#pragma unroll
-  for (int i = 136; i < 200; ++i)
-    sponge[i] = 0;
+  spongeBuffer[0] =
+      ((ulong)0xffu << 0)
+      | ((ulong)S_1 << 8)
+      | ((ulong)S_2 << 16)
+      | ((ulong)S_3 << 24)
+      | ((ulong)S_4 << 32)
+      | ((ulong)S_5 << 40)
+      | ((ulong)S_6 << 48)
+      | ((ulong)S_7 << 56);
+  spongeBuffer[1] =
+      ((ulong)S_8 << 0)
+      | ((ulong)S_9 << 8)
+      | ((ulong)S_10 << 16)
+      | ((ulong)S_11 << 24)
+      | ((ulong)S_12 << 32)
+      | ((ulong)S_13 << 40)
+      | ((ulong)S_14 << 48)
+      | ((ulong)S_15 << 56);
+  spongeBuffer[2] =
+      ((ulong)S_16 << 0)
+      | ((ulong)S_17 << 8)
+      | ((ulong)S_18 << 16)
+      | ((ulong)S_19 << 24)
+      | ((ulong)S_20 << 32)
+      | ((ulong)S_21 << 40)
+      | ((ulong)S_22 << 48)
+      | ((ulong)S_23 << 56);
+  spongeBuffer[3] =
+      ((ulong)S_24 << 0)
+      | ((ulong)S_25 << 8)
+      | ((ulong)S_26 << 16)
+      | ((ulong)S_27 << 24)
+      | ((ulong)S_28 << 32)
+      | ((ulong)S_29 << 40)
+      | ((ulong)S_30 << 48)
+      | ((ulong)S_31 << 56);
+  spongeBuffer[4] =
+      ((ulong)S_32 << 0)
+      | ((ulong)S_33 << 8)
+      | ((ulong)S_34 << 16)
+      | ((ulong)S_35 << 24)
+      | ((ulong)S_36 << 32)
+      | ((ulong)S_37 << 40)
+      | ((ulong)S_38 << 48)
+      | ((ulong)S_39 << 56);
+  spongeBuffer[5] = (ulong)S_40 | ((ulong)salt_tail << 8) | ((ulong)(nonce.uint32_t[0] & 0xffffffu) << 40);
+  spongeBuffer[6] =
+      (ulong)(nonce.uint32_t[0] >> 24)
+      | ((ulong)nonce_hi << 8)
+      | ((ulong)S_53 << 40)
+      | ((ulong)S_54 << 48)
+      | ((ulong)S_55 << 56);
+  spongeBuffer[7] =
+      ((ulong)S_56 << 0)
+      | ((ulong)S_57 << 8)
+      | ((ulong)S_58 << 16)
+      | ((ulong)S_59 << 24)
+      | ((ulong)S_60 << 32)
+      | ((ulong)S_61 << 40)
+      | ((ulong)S_62 << 48)
+      | ((ulong)S_63 << 56);
+  spongeBuffer[8] =
+      ((ulong)S_64 << 0)
+      | ((ulong)S_65 << 8)
+      | ((ulong)S_66 << 16)
+      | ((ulong)S_67 << 24)
+      | ((ulong)S_68 << 32)
+      | ((ulong)S_69 << 40)
+      | ((ulong)S_70 << 48)
+      | ((ulong)S_71 << 56);
+  spongeBuffer[9] =
+      ((ulong)S_72 << 0)
+      | ((ulong)S_73 << 8)
+      | ((ulong)S_74 << 16)
+      | ((ulong)S_75 << 24)
+      | ((ulong)S_76 << 32)
+      | ((ulong)S_77 << 40)
+      | ((ulong)S_78 << 48)
+      | ((ulong)S_79 << 56);
+  spongeBuffer[10] =
+      ((ulong)S_80 << 0)
+      | ((ulong)S_81 << 8)
+      | ((ulong)S_82 << 16)
+      | ((ulong)S_83 << 24)
+      | ((ulong)S_84 << 32)
+      | ((ulong)1u << 40);
+  spongeBuffer[11] = 0;
+  spongeBuffer[12] = 0;
+  spongeBuffer[13] = 0;
+  spongeBuffer[14] = 0;
+  spongeBuffer[15] = 0;
+  spongeBuffer[16] = ((ulong)0x80u << 56);
+  spongeBuffer[17] = 0;
+  spongeBuffer[18] = 0;
+  spongeBuffer[19] = 0;
+  spongeBuffer[20] = 0;
+  spongeBuffer[21] = 0;
+  spongeBuffer[22] = 0;
+  spongeBuffer[23] = 0;
+  spongeBuffer[24] = 0;
 
   // Apply keccakf
   keccakf(spongeBuffer);

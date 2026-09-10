@@ -53,12 +53,12 @@ struct MineArgs {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     one: bool,
 
-    /// Mine for at least this many seconds, then return the best qualifying result found
+    /// Wait at least this many mining seconds for a qualifying result (maximum takes precedence)
     #[arg(long)]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     min_runtime_secs: Option<u64>,
 
-    /// Maximum runtime in seconds. If exceeded, returns the best result found so far, even if it doesn't meet the target zeros.
+    /// Stop at a batch boundary after this many mining seconds; return the best candidate, with exit code 2 if below target
     #[arg(long)]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     max_runtime_secs: Option<u64>,
@@ -95,6 +95,10 @@ struct BenchArgs {
     #[arg(short, long)]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     worksize: Option<u32>,
+
+    /// Required zero bytes per address; 21 measures hashing without matches
+    #[arg(long, default_value_t = 21)]
+    zeros: u32,
 
     /// Timed kernel batches
     #[arg(long, default_value_t = 20)]
@@ -156,7 +160,7 @@ pub struct AppConfig {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result<std::process::ExitCode> {
     let cli = Cli::parse();
 
     match &cli.mode {
@@ -197,11 +201,11 @@ async fn main() -> Result<()> {
                         worksize: Some(worksize),
                         zeros: Some(zeros),
                         min_runtime_secs: unwrapped.min_runtime_secs,
+                        max_runtime_secs: unwrapped.max_runtime_secs,
                     },
                 )
                 .await?;
-                print_remote_mine_response(response, unwrapped.abi)?;
-                return Ok(());
+                return print_remote_mine_response(response, unwrapped.abi, zeros);
             }
 
             let app_config = AppConfig {
@@ -222,7 +226,7 @@ async fn main() -> Result<()> {
                 Some(Display::new()?)
             };
 
-            start_miner(app_config, display)?;
+            return start_miner(app_config, display);
         }
         Commands::List {} => {
             gpgpu::list_devices()?;
@@ -257,7 +261,7 @@ async fn main() -> Result<()> {
         }
     }
 
-    Ok(())
+    Ok(std::process::ExitCode::SUCCESS)
 }
 
 fn build_bench_app_config(args: &BenchArgs) -> Result<AppConfig> {
@@ -275,7 +279,7 @@ fn build_bench_app_config(args: &BenchArgs) -> Result<AppConfig> {
             "codehash",
         )?,
         worksize: args.worksize.unwrap_or(0x4400000_u32),
-        zeros: 21,
+        zeros: args.zeros as usize,
         one: false,
         abi: true,
         min_runtime_secs: None,
@@ -290,8 +294,13 @@ pub fn decode_fixed<const N: usize>(value: &str, field: &str) -> Result<[u8; N]>
         .map_err(|bytes: Vec<u8>| eyre!("{field} must be {N} bytes, got {}", bytes.len()))
 }
 
-fn print_remote_mine_response(response: server::MineResponse, abi: bool) -> Result<()> {
-    if abi {
+fn print_remote_mine_response(
+    response: server::MineResponse,
+    abi: bool,
+    target: usize,
+) -> Result<std::process::ExitCode> {
+    let exit_code = miner::mining_exit_code(response.score.filter(|_| response.found), target);
+    if abi && response.found {
         let salt = decode_fixed::<32>(
             response
                 .salt
@@ -310,7 +319,7 @@ fn print_remote_mine_response(response: server::MineResponse, abi: bool) -> Resu
             .score
             .ok_or_eyre("remote server did not return a score")?;
         miner::print_abi_encoded_result(&salt, &address, score);
-    } else {
+    } else if !abi {
         println!(
             "{}",
             serde_json::to_string_pretty(&response)
@@ -318,12 +327,62 @@ fn print_remote_mine_response(response: server::MineResponse, abi: bool) -> Resu
         );
     }
 
-    Ok(())
+    Ok(exit_code)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn remote_fallback_and_empty_results_exit_with_two() -> Result<()> {
+        for abi in [false, true] {
+            let response = server::MineResponse {
+                cache_hit: false,
+                found: true,
+                salt: Some(format!("0x{}", "44".repeat(32))),
+                address: Some(format!("0x{}", "55".repeat(20))),
+                score: Some(1),
+                runtime_ms: 1_234,
+            };
+            assert_eq!(
+                print_remote_mine_response(response.clone(), abi, 2)?,
+                std::process::ExitCode::from(2)
+            );
+            assert_eq!(
+                print_remote_mine_response(response, abi, 1)?,
+                std::process::ExitCode::SUCCESS
+            );
+            let empty = server::MineResponse {
+                cache_hit: false,
+                found: false,
+                salt: None,
+                address: None,
+                score: None,
+                runtime_ms: 1_234,
+            };
+            assert_eq!(
+                print_remote_mine_response(empty, abi, 2)?,
+                std::process::ExitCode::from(2)
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn cli_limits_override_config_and_preserve_unspecified_limit() -> Result<()> {
+        let cli = Cli::try_parse_from(["salty", "mine", "--max-runtime-secs", "20"])?;
+        let Commands::Mine(args) = cli.mode else {
+            panic!("expected mine")
+        };
+        let args: MineArgs = Figment::new()
+            .merge(Toml::string("min_runtime_secs = 30\nmax_runtime_secs = 40"))
+            .merge(Serialized::defaults(args))
+            .extract()?;
+        assert_eq!(args.min_runtime_secs, Some(30));
+        assert_eq!(args.max_runtime_secs, Some(20));
+        Ok(())
+    }
 
     #[test]
     fn bench_config_has_built_in_defaults() -> Result<()> {
@@ -332,6 +391,7 @@ mod tests {
             caller: None,
             codehash: None,
             worksize: None,
+            zeros: 21,
             batches: 20,
             warmup_batches: 3,
         };
@@ -361,6 +421,7 @@ mod tests {
                 "0x3333333333333333333333333333333333333333333333333333333333333333".to_owned(),
             ),
             worksize: Some(128),
+            zeros: 0,
             batches: 20,
             warmup_batches: 3,
         };
@@ -371,6 +432,7 @@ mod tests {
         assert_eq!(config.caller, [0x22_u8; 20]);
         assert_eq!(config.codehash, [0x33_u8; 32]);
         assert_eq!(config.worksize, 128);
+        assert_eq!(config.zeros, 0);
 
         Ok(())
     }

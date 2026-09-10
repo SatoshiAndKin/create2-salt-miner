@@ -1,0 +1,25 @@
+{
+  "source_commit": "76f24fe8763870d9ea5e9bbf84311f307af15ab7",
+  "corrected_kernel_commit": "8fced24",
+  "source_archive_sha256": "948f5bdc76e13c236b7e4ccc750a004221a5d98eb332ae40857eaa2ae7a23985",
+  "lockfile_sha256": "46f97e4c4069855237a9647910242ec83968bac965d5cda746d9560ef97843df",
+  "measurement_script_sha256": "fd93977c13086c762e39209bdb8b726331080cde64a41272a6602a697b65b4a3",
+  "rustflags": "-C target-cpu=native",
+  "target": "x86_64-unknown-linux-gnu",
+  "build_root": "/tmp/salty-benchmark-20260910-E6rlwI/release-final",
+  "kernels_embedded_in_each_binary": true,
+  "variants": {
+    "baseline": {
+      "kernel_sha256": "0b6501462a2c040a8bd73c0206708721201973b102d79c8db9d7230fbda4370f",
+      "binary_sha256": "48228733e9152c4299683af9d771d349d90ae05111e6620387aa40a1b585cd91",
+      "binary-pgo_sha256": "65104426c6bf462e9bbc97a006b9fe28f9b51a61e9cb456b0a4b209ac8ef3257",
+      "profile_sha256": "c95df4d43f0dbb467cb2dc3d48ccc55fa10a61cdaf281c2b3ecbd1dbaff60186"
+    },
+    "final": {
+      "kernel_sha256": "67542e2239b923e1b9f6e0ba8871e2776d290bfe0d8b578a6db5508258147fef",
+      "binary_sha256": "1d91be55b2d276ef3a6cad52487cb1a59c89c5d468139bce257aa10287623ef6",
+      "binary-pgo_sha256": "06cd8df7b7b3a04846029f5e58041ca6ee24f511578d0d74cb0a558cb7b3b52e",
+      "profile_sha256": "f14cfe11ede9f346e2db269b5ca4fd4be4102d5aba79ce5472a3ef0c77c31128"
+    }
+  }
+}
