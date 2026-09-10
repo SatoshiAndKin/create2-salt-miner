@@ -131,3 +131,11 @@ Both backends use `std::time::Instant`: the import in `miner.rs` serves OpenCL,
 and `miner/metal.rs` has its own import. Both pass elapsed `Duration` values to
 the same platform-independent `MiningStop::reached` function. The conditional
 import prevents an unused-import warning on macOS; it does not disable timing.
+
+The [final Linux x86-64 CI run](https://github.com/SatoshiAndKin/create2-salt-miner/actions/runs/34457637380/job/102807649578)
+passed all 30 tests, including native PoCL CLI and queued mining, formatting,
+locked check, strict Clippy, cargo-deny, and Python metadata tests. Fresh default
+PGO training produced 10220 functions with a maximum function count of 1020;
+profile validation and the optimized build passed. CI uploaded the Linux binary
+and profiles. Windows cross-check passed again in that run; instrumentation
+remains blocked by the missing GNU profiling runtime.
