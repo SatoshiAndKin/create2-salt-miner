@@ -67,7 +67,23 @@ static inline ulong rol(const ulong x, const uint s) {
   return as_ulong(output);
 }
 #else
-#define rol(x, s) (((x) << s) | ((x) >> (64u - s)))
+static inline ulong rol(const ulong x, const uint s) {
+  const uint lo = (uint)x;
+  const uint hi = (uint)(x >> 32u);
+  uint out_lo;
+  uint out_hi;
+  if (s < 32u) {
+    out_lo = (lo << s) | (hi >> (32u - s));
+    out_hi = (hi << s) | (lo >> (32u - s));
+  } else if (s == 32u) {
+    out_lo = hi;
+    out_hi = lo;
+  } else {
+    out_lo = (hi << (s - 32u)) | (lo >> (64u - s));
+    out_hi = (lo << (s - 32u)) | (hi >> (64u - s));
+  }
+  return ((ulong)out_hi << 32u) | (ulong)out_lo;
+}
 #endif
 
 #define rol1(x) rol(x, 1u)

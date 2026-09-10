@@ -180,6 +180,9 @@ and an actual baseline group size of 256.
 | Packed state, five pairs per set | -10.05%, +3.43% | [-6.55%, +6.40%] | Do not retain: sets disagree and interval includes zero |
 | Invariant bindings, five pairs per set | -2.33%, +0.31% | [-5.32%, +0.11%] | Do not retain: sets disagree and interval includes zero |
 | Partial round unrolling, five pairs per set | +38.13%, +47.85% | [+41.33%, +55.39%] | Retain: both sets pass, with native correctness checks |
+| Chi storage after partial unrolling, five pairs per set | +1.42%, +0.04% | [-2.19%, +3.94%] | Larger independent confirmation warranted |
+| Chi storage after partial unrolling, ten fresh pairs per set | +1.27%, -0.93% | [-2.22%, +3.28%] | Do not retain: the small gain did not repeat |
+| Paired 32-bit rotations after partial unrolling, five pairs per set | +7.77%, +7.43% | [+4.49%, +11.17%] | Retain: both sets and correctness checks pass |
 
 Packed state passed 31 native Linux PoCL tests, including CPU-reference checks
 at nonce byte/word boundaries and match-producing inputs. The larger threadgroup run uses fresh samples
@@ -202,6 +205,23 @@ release settings. `partial-rounds.json` records both binary hashes, all commands
 startup, and timed mining. `partial-rounds.patch` records the isolated change.
 Final combined and fresh PGO comparisons remain to be completed.
 
+The chi retry also passed all 32 native Metal tests and 31 Linux PoCL tests,
+including the CPU-reference boundary workloads. Both measured binaries contain
+the retained partial unrolling; the candidate changes only the chi row's
+temporary values. The confirmation used the unchanged script snapshot from
+`6a02e93`, before the new benchmark target option. All fresh confirmation samples
+remain in `chi-after-partial-confirm.json`; earlier selection samples are not
+pooled with them.
+
+Paired rotations are the seventh distinct code idea. The candidate implements
+the non-AMD Keccak rotations with paired 32-bit shifts and preserves the existing
+AMD `bitalign` implementation. All 32 native Metal tests and 31 Linux PoCL tests
+passed. Both measured binaries contain partial unrolling and use the benchmark
+before the target-option change. The pooled median gain was 7.60% over partial
+unrolling. This is an incremental gain; measure the combined gain directly.
+The CPU-reference tests now also require a known input with at least two zero
+bytes for each salt tail, which strengthens checks against an incorrect digest.
+
 ## Nightly Rust feature assessment added to the plan
 
 Assess nightly features against the measured work before changing source. Keep
@@ -215,7 +235,7 @@ proposing a release toolchain change.
 | --- | --- |
 | [Explicit tail calls (`become`)](https://doc.rust-lang.org/stable/core/keyword.become.html) | Inspect hot recursive calls or interpreter dispatch. The current host mining path uses loops and waits for GPU work; no measured tail-call opportunity exists. Rust marks this feature incomplete. Do not rewrite the loop into recursion to force a trial. |
 | [Portable SIMD](https://doc.rust-lang.org/nightly/std/simd/index.html) | Look for repeated host data processing. Keccak executes in Metal/OpenCL source, so Rust SIMD does not change the hashing kernel. CPU reference hashing checks results and is outside the throughput bottleneck. |
-| [Branch hints](https://doc.rust-lang.org/nightly/std/hint/fn.likely.html) | Check CPU branch samples before adding hints to result handling. Mandatory PGO already measures host branch frequency. Current CPU evidence does not justify a separate hint trial. |
+| [Branch hints](https://doc.rust-lang.org/nightly/std/hint/fn.likely.html) | Check CPU branch samples before adding hints to result handling. Mandatory PGO already measures host branch frequency. The related [`cold_path`](https://doc.rust-lang.org/nightly/std/hint/fn.cold_path.html) is stable since 1.95. Current CPU evidence does not justify a separate hint trial. |
 | [MIR optimization levels](https://doc.rust-lang.org/nightly/unstable-book/compiler-flags/mir-opt-level.html) and newer LLVM | Compare a dated nightly compiler only if the host profile identifies a material cost after the kernel gain. The internal MIR option affects Rust code, not the runtime Metal/OpenCL compiler. Use optimization remarks to identify a concrete missed optimization first. |
 | [Optimization remarks](https://doc.rust-lang.org/rustc/codegen-options/#remark) | Available on stable. Use `-C remark` for an identified Rust hot function; inspect generated code alongside CPU samples. |
 | [Sample-based PGO](https://doc.rust-lang.org/beta/unstable-book/compiler-flags/profile_sample_use.html) | Optional investigation for a supported native host with representative CPU samples. Keep the required instrumented PGO release path. Never reuse profiles across compiler versions. |
@@ -224,3 +244,5 @@ proposing a release toolchain change.
 The first feature pass found no supported reason to add nightly syntax to the
 current GPU-bound path. Recheck CPU cost after the retained kernel changes. This
 screening is research and does not count as an optimization trial.
+The installed dated nightly is `nightly-2026-09-10`, rustc `a36d05efa` (1.100.0),
+with LLVM 23.1.1. Its availability does not establish a runtime gain.
