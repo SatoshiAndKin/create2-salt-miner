@@ -1,0 +1,11 @@
+--- a/src/miner/metal.rs
++++ b/src/miner/metal.rs
+@@ -52,7 +52,7 @@
+                 execution_width > 0 && maximum_threads >= execution_width,
+                 "Metal reported an invalid compute thread width"
+             );
+-            let preferred_threads = maximum_threads.min(256);
++            let preferred_threads = maximum_threads.min(128);
+             let threads_per_group = (preferred_threads / execution_width).max(1) * execution_width;
+             let solutions = device.new_buffer(
+                 u64::try_from(SOLUTION_WORDS * size_of::<u32>())?,

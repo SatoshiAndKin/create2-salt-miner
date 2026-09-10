@@ -1,0 +1,33 @@
+{
+  "corrected_commit": "8fced24",
+  "device": "Apple M4 Max",
+  "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.2\nBuildVersion:\t\t25C56\n",
+  "compiler": "rustc 1.98.0 (88d9e12ae 2026-08-18)\nbinary: rustc\ncommit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea\ncommit-date: 2026-08-18\nhost: aarch64-apple-darwin\nrelease: 1.98.0\nLLVM version: 22.1.8\n",
+  "rustflags": "-C target-cpu=native",
+  "release_profile": {
+    "opt-level": 3,
+    "lto": "fat",
+    "strip": true,
+    "panic": "abort",
+    "codegen-units": 1,
+    "debug": false,
+    "incremental": false
+  },
+  "metal_fast_math": true,
+  "baseline_threads_per_group": 256,
+  "worksize": 71303168,
+  "warmup_batches": 2,
+  "timed_batches": 8,
+  "target": 21,
+  "benchmark_attempts": 570425344,
+  "trial_count": 5,
+  "retained": [],
+  "acceptance": "Median paired gain must exceed the baseline range divided by its median, followed by an independent confirmation set. All five failed the first gate.",
+  "measurement_limits": [
+    "Concurrent CPU builds and ordinary desktop GPU activity contributed to variation; no gain is attributed to noise.",
+    "An initial attempt failed because system Python 3.9 lacks zip(strict=True), and overlapped a GPU correctness test; it is excluded. Recorded sets used Python 3.14 and no overlapping mining tests.",
+    "Warmup is excluded from attempts_per_sec. The benchmark waits for command completion and reads the normal solution buffer. The 21-zero threshold is a runtime argument; hashing has no early exit for this value.",
+    "Startup is measured separately as wall time minus completed one-batch benchmark time, without warmup.",
+    "Windows performance is unmeasured."
+  ]
+}

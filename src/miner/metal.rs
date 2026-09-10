@@ -320,6 +320,49 @@ mod tests {
     use crate::{AppConfig, miner::mining_outcome};
 
     #[test]
+    #[ignore = "requires a Metal device"]
+    fn metal_scores_match_cpu_at_nonce_boundaries() -> Result<()> {
+        let config = AppConfig {
+            factory: [0x11; 20],
+            caller: [0x22; 20],
+            codehash: [0x33; 32],
+            worksize: 1,
+            zeros: 0,
+            one: true,
+            abi: true,
+            min_runtime_secs: None,
+            max_runtime_secs: None,
+        };
+        let engine = MetalMiner::new(&config)?;
+        for tail in [0_u32, 0x1234_5678, u32::MAX] {
+            let salt = FixedBytes::from(tail.to_le_bytes());
+            let qualifying_nonce = (0_u32..10_000)
+                .find(|&nonce| {
+                    mining_outcome(&config, &salt, u64::from(nonce) << 32)
+                        .unwrap()
+                        .score
+                        >= 1
+                })
+                .expect("fixed workload has a positive-score nonce");
+            for nonce in [0, 1, u32::MAX - 1, u32::MAX, qualifying_nonce] {
+                let solution = u64::from(nonce) << 32;
+                let reference = mining_outcome(&config, &salt, solution)?;
+                for threshold in 0..=reference.score + 1 {
+                    let actual = engine.run_batches(tail, nonce, threshold as u32, 1)?;
+                    assert_eq!(
+                        actual,
+                        (reference.score >= threshold).then_some(solution),
+                        "salt tail {tail}, nonce {nonce}, threshold {threshold}"
+                    );
+                }
+            }
+            let solution = engine.run_batches(tail, u32::MAX, 0, 2)?.unwrap();
+            assert!(solution == (u64::from(u32::MAX) << 32) || solution == 0);
+        }
+        Ok(())
+    }
+
+    #[test]
     fn metal_kernel_returns_a_cpu_verified_nonce() -> Result<()> {
         if Device::system_default().is_none() && Device::all().is_empty() {
             return Ok(());

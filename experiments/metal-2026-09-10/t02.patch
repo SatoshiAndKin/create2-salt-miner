@@ -1,0 +1,55 @@
+--- a/src/miner/metal.rs
++++ b/src/miner/metal.rs
+@@ -90,7 +90,7 @@
+             let command_buffer = self.queue.new_command_buffer();
+             let encoder = command_buffer.new_compute_command_encoder();
+             encoder.set_compute_pipeline_state(&self.pipeline);
+-            encoder.set_buffer(3, Some(&self.solutions), 0);
++            encoder.set_buffer(1, Some(&self.solutions), 0);
+             let threads_per_grid = MTLSize {
+                 width: NSUInteger::from(self.worksize),
+                 height: 1,
+@@ -103,21 +103,9 @@
+             };
+             for batch in 0..batches {
+                 let nonce_hi = first_nonce_hi.wrapping_add(batch);
+-                encoder.set_bytes(
+-                    0,
+-                    size_of::<u32>() as NSUInteger,
+-                    std::ptr::from_ref(&salt_tail).cast::<c_void>(),
+-                );
+-                encoder.set_bytes(
+-                    1,
+-                    size_of::<u32>() as NSUInteger,
+-                    std::ptr::from_ref(&nonce_hi).cast::<c_void>(),
+-                );
+-                encoder.set_bytes(
+-                    2,
+-                    size_of::<u32>() as NSUInteger,
+-                    std::ptr::from_ref(&min_zeros).cast::<c_void>(),
+-                );
++                let parameters = [salt_tail, nonce_hi, min_zeros];
++                encoder.set_bytes(0, size_of::<[u32; 3]>() as NSUInteger,
++                    parameters.as_ptr().cast::<c_void>());
+                 encoder.dispatch_threads(threads_per_grid, threads_per_group);
+             }
+             encoder.end_encoding();
+--- a/src/kernels/keccak256.cl
++++ b/src/kernels/keccak256.cl
+@@ -222,11 +222,12 @@
+ }
+ 
+ #if defined(METAL_BACKEND)
+-kernel void hashMessage(constant uint &salt_tail [[buffer(0)]],
+-                        constant uint &nonce_hi [[buffer(1)]],
+-                        constant uint &min_zeros [[buffer(2)]],
+-                        device atomic_uint *solutions [[buffer(3)]],
++kernel void hashMessage(constant uint *parameters [[buffer(0)]],
++                        device atomic_uint *solutions [[buffer(1)]],
+                         uint global_id [[thread_position_in_grid]]) {
++  const uint salt_tail = parameters[0];
++  const uint nonce_hi = parameters[1];
++  const uint min_zeros = parameters[2];
+ #else
+ __kernel void hashMessage(uint const salt_tail, uint const nonce_hi,
+                           uint const min_zeros,

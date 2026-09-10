@@ -703,6 +703,38 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    #[ignore = "requires a native Metal or OpenCL device"]
+    async fn native_queued_maximum_returns_fallback_and_measured_time() -> Result<()> {
+        let state = state();
+        let mut input = request();
+        input.worksize = Some(1_048_576);
+        input.zeros = Some(21);
+        input.min_runtime_secs = None;
+        input.max_runtime_secs = Some(1);
+        let request = normalize_request(input)?;
+        let key = serde_json::to_string(&request)?;
+        enqueue_job(&state, &key, &request)?;
+        assert!(run_next_job(&state).await?);
+        let response = get_cached_response(&state, &key)?.unwrap();
+        assert!(response.found);
+        assert!(response.score.unwrap() < 21);
+        assert!(response.runtime_ms >= 1_000);
+        let salt = decode_fixed::<32>(response.salt.as_deref().unwrap(), "salt")?;
+        let address = alloy_primitives::Address::from_slice(&decode_fixed::<20>(
+            &request.factory,
+            "factory",
+        )?)
+        .create2(salt, decode_fixed::<32>(&request.codehash, "codehash")?);
+        assert_eq!(response.address, Some(address.to_string()));
+        assert_eq!(
+            response.score,
+            Some(address.iter().filter(|&&byte| byte == 0).count())
+        );
+        assert!(claim_next_job(&state)?.is_none());
+        Ok(())
+    }
+
     #[test]
     fn limits_survive_serialization_normalization_and_queue_restart() -> Result<()> {
         let wire = serde_json::to_value(request())?;
