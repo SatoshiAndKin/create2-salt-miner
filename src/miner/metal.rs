@@ -13,7 +13,7 @@ use objc::rc::autoreleasepool;
 use rand::RngExt;
 
 use super::{
-    KERNEL_SRC, MiningOutcome, MiningStop, READBACK_INTERVAL_BATCHES, mining_outcome,
+    KERNEL_SRC, MiningOutcome, MiningRun, MiningStop, READBACK_INTERVAL_BATCHES, mining_outcome,
     mk_kernel_defines, print_abi_encoded_result,
 };
 use crate::{AppConfig, Display};
@@ -156,39 +156,6 @@ pub(super) fn start_miner(config: AppConfig, mut display: Option<Display>) -> Re
     if !config.abi {
         println!("Preparing Metal Miner...");
     }
-    if config.min_runtime_secs.is_some() || config.max_runtime_secs.is_some() {
-        let abi = config.abi;
-        let target_zeros = config.zeros;
-        let min_runtime = config.min_runtime_secs.map(Duration::from_secs);
-        let max_runtime = config.max_runtime_secs.map(Duration::from_secs);
-        let outcome = mine_once(
-            config,
-            MiningStop::Timed {
-                min_runtime,
-                max_runtime,
-            },
-        )?;
-        if let Some(outcome) = outcome {
-            if abi {
-                print_abi_encoded_result(&outcome.salt, outcome.address.as_slice(), outcome.score);
-            } else {
-                println!(
-                    "0x{} => {} (Score: {}, Runtime: {})",
-                    hex::encode(outcome.salt),
-                    outcome.address,
-                    outcome.score,
-                    HumanDuration(outcome.runtime),
-                );
-            }
-            if outcome.score < target_zeros {
-                std::process::exit(2);
-            }
-        } else {
-            std::process::exit(2);
-        }
-        return Ok(());
-    }
-
     let engine = MetalMiner::new(&config)?;
     let start = Instant::now();
     let mut found_list = Vec::new();
@@ -226,7 +193,7 @@ pub(super) fn start_miner(config: AppConfig, mut display: Option<Display>) -> Re
             let Some(solution) = solution else {
                 continue;
             };
-            let outcome = mining_outcome(&config, &salt, solution, start)?;
+            let outcome = mining_outcome(&config, &salt, solution)?;
             ensure!(
                 outcome.score >= next_zeros,
                 "Metal returned a solution below the requested score"
@@ -243,7 +210,7 @@ pub(super) fn start_miner(config: AppConfig, mut display: Option<Display>) -> Re
                 hex::encode(outcome.salt),
                 outcome.address,
                 outcome.score,
-                HumanDuration(outcome.runtime),
+                HumanDuration(start.elapsed()),
             ));
             if config.one {
                 return Ok(());
@@ -286,14 +253,10 @@ pub(super) fn benchmark_miner(
     Ok(attempts * 1_000_000_000 / elapsed_ns)
 }
 
-pub(super) fn mine_once(config: AppConfig, stop: MiningStop) -> Result<Option<MiningOutcome>> {
+pub(super) fn mine_once(config: AppConfig, stop: MiningStop) -> Result<MiningRun> {
     let engine = MetalMiner::new(&config)?;
     let start = Instant::now();
-    let mut next_zeros = if config.max_runtime_secs.is_some() {
-        0
-    } else {
-        config.zeros
-    };
+    let mut next_zeros = stop.initial_threshold(config.zeros);
     let mut best_outcome = None;
     let mut rng = rand::rng();
 
@@ -310,53 +273,34 @@ pub(super) fn mine_once(config: AppConfig, stop: MiningStop) -> Result<Option<Mi
             )?;
             nonce_hi = nonce_hi.wrapping_add(READBACK_INTERVAL_BATCHES);
             if let Some(solution) = solution {
-                let outcome = mining_outcome(&config, &salt, solution, start)?;
+                let outcome = mining_outcome(&config, &salt, solution)?;
                 ensure!(
                     outcome.score >= next_zeros,
                     "Metal returned a solution below the requested score"
                 );
-                match stop {
-                    MiningStop::FirstMatch => return Ok(Some(outcome)),
-                    MiningStop::Timed {
-                        min_runtime,
-                        max_runtime,
-                    } => {
-                        if best_outcome
-                            .as_ref()
-                            .is_none_or(|best: &MiningOutcome| outcome.score > best.score)
-                        {
-                            next_zeros = outcome.score + 1;
-                            best_outcome = Some(outcome);
-                        }
-                        if timed_stop_reached(start, min_runtime, max_runtime, &best_outcome) {
-                            return Ok(best_outcome);
-                        }
-                    }
+                if best_outcome
+                    .as_ref()
+                    .is_none_or(|best: &MiningOutcome| outcome.score > best.score)
+                {
+                    next_zeros = outcome.score + 1;
+                    best_outcome = Some(outcome);
                 }
-                break;
             }
-            if let MiningStop::Timed {
-                min_runtime,
-                max_runtime,
-            } = stop
-                && timed_stop_reached(start, min_runtime, max_runtime, &best_outcome)
-            {
-                return Ok(best_outcome);
+            if stop.reached(
+                start.elapsed(),
+                best_outcome.as_ref().map(|best| best.score),
+                config.zeros,
+            ) {
+                return Ok(MiningRun {
+                    outcome: best_outcome,
+                    runtime: start.elapsed(),
+                });
+            }
+            if solution.is_some() {
+                break;
             }
         }
     }
-}
-
-fn timed_stop_reached(
-    start: Instant,
-    min_runtime: Option<Duration>,
-    max_runtime: Option<Duration>,
-    best_outcome: &Option<MiningOutcome>,
-) -> bool {
-    let elapsed = start.elapsed();
-    let past_minimum = min_runtime.is_none_or(|minimum| elapsed >= minimum);
-    let past_maximum = max_runtime.is_some_and(|maximum| elapsed >= maximum);
-    (past_minimum && best_outcome.is_some()) || past_maximum
 }
 
 fn metal_kernel_src(config: &AppConfig) -> String {
@@ -402,7 +346,7 @@ mod tests {
         assert_eq!(solution >> 32, u64::from(nonce_hi));
         assert!((solution as u32) < config.worksize);
         let salt = FixedBytes::from(salt_tail.to_le_bytes());
-        let outcome = mining_outcome(&config, &salt, solution, std::time::Instant::now())?;
+        let outcome = mining_outcome(&config, &salt, solution)?;
         assert_eq!(&outcome.salt[20..24], &salt_tail.to_le_bytes());
         assert_eq!(&outcome.salt[24..32], &solution.to_le_bytes());
 

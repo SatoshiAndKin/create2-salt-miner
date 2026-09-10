@@ -12,3 +12,8 @@ zeros = 6
 
 # Optional: mine for at least this many seconds and then return best qualifying result
 # min_runtime_secs = 60
+
+# Optional: stop after this many mining seconds, even below the target (exit code 2)
+# max_runtime_secs = 120
+# Limits apply at batch boundaries. The maximum takes precedence over the minimum.
+# Setup, queue, and network time do not count toward either limit.

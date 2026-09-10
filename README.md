@@ -83,6 +83,21 @@ The following parameters are available when using the `mine` command.
 | `zeros`    | Minimum zero bytes to look for in the created contract (no stop)     | `1`                                          |
 | `remote_server` | Remote Salty HTTP server base URL used by `mine` instead of local OpenCL mining | unset                              |
 | `min_runtime_secs` | Mine for at least this many seconds, then return the best qualifying result found | (disabled) |
+| `max_runtime_secs` | Return the best candidate at the maximum, including a below-target candidate | (disabled) |
+
+Both runtime limits work with local and remote mining. Without a minimum, a
+qualifying result can return immediately. A maximum takes precedence over a
+longer minimum. The miner checks limits at batch boundaries; setup, queue, and
+network time do not count. A zero minimum is invalid; a zero maximum stops at
+the first batch boundary.
+
+At the maximum, the CLI prints the best candidate and exits with code `2` if its
+score is below the target. If no candidate exists, it also exits with code `2`.
+ABI output keeps the `abi.encode(bytes32,address,uint256)` format. The HTTP
+response keeps `found`, `salt`, `address`, `score`, `runtime_ms`, and `cache_hit`.
+`found` means a candidate exists; compare `score` with `zeros` to check the target.
+`runtime_ms` reports measured mining time, also when no candidate exists. Cache
+keys include both limits. See `/api-docs/openapi.json` for the API schema.
 
 ## Performance Benchmarks
 
