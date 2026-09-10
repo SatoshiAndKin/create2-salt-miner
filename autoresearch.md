@@ -97,3 +97,37 @@ first Linux test build failed to load a dependency artifact; a fresh build
 directory passed. This is OpenCL runtime evidence on PoCL, not a Linux GPU or
 Windows performance measurement. The rejected shared kernel changes have no
 OpenCL runtime validation and were not retained.
+
+Mac `just pgo-release` also completed with fresh default training. The profile
+contained 8302 functions and a maximum function count of 3570. Optimization
+reported 53 functions without training data. The five-pair PGO comparison had a
+median paired change of -9.47% against a 26.84% baseline range, so this run
+establishes no PGO throughput gain or regression. PGO remains required by the
+release policy. The raw comparison is `pgo-set1.json`. There are no retained code
+optimizations to combine or retrain separately; the corrected and final mining
+code are the same apart from tests. No total speedup is claimed.
+
+Final local Mac validation passed 32 tests, including all native device tests,
+locked check, strict Clippy, formatting, and cargo-deny. The Python metadata
+checks and PowerShell syntax check passed. Native Windows profile training and
+the resulting Windows profile-guided release build remain required before this
+release repair is complete.
+
+Windows GNU locked cross-check passed both locally and in Linux x86-64 CI.
+Instrumentation then failed with E0463: the stock Rust 1.98.0 GNU target lacks
+`profiler_builtins`. The [Rust release build configuration](https://github.com/rust-lang/rust/blob/1.98.0/src/ci/github-actions/jobs.yml#L659-L738)
+enables the runtime for MSVC and GNU LLVM, but not this GNU target. A target or
+compiler-build decision is required. No Windows profile has been fabricated,
+and the mandatory profile checks still block the release.
+
+The first Linux x86-64 CI run also exposed a timing assumption in the native CLI
+test. Slow PoCL batches reached the maximum before collecting a target score,
+so the specified fallback exit code 2 was correct. The qualification test now
+uses a minimum without a competing maximum. The difficult-target test still
+uses a maximum shorter than its minimum and checks fallback output against CPU
+CREATE2. All 32 native Mac tests passed after this test correction.
+
+Both backends use `std::time::Instant`: the import in `miner.rs` serves OpenCL,
+and `miner/metal.rs` has its own import. Both pass elapsed `Duration` values to
+the same platform-independent `MiningStop::reached` function. The conditional
+import prevents an unused-import warning on macOS; it does not disable timing.

@@ -7,29 +7,31 @@ use std::{
 #[test]
 #[ignore = "requires a native Metal or OpenCL device"]
 fn native_timed_mining_qualifies_or_returns_fallback() {
-    for (target, minimum, maximum, exit_code) in [(1, 1, 3, 0), (21, 3, 1, 2)] {
+    // Qualification has no deadline: a slow OpenCL batch may exceed a short
+    // maximum before it reports a target score. Test maximum precedence below.
+    for (target, minimum, maximum, exit_code) in [(1, 1, None, 0), (21, 3, Some(1), 2)] {
         let start = Instant::now();
-        let output = Command::new(env!("CARGO_BIN_EXE_salty"))
-            .args([
-                "mine",
-                "--factory",
-                "0x1111111111111111111111111111111111111111",
-                "--caller",
-                "0x2222222222222222222222222222222222222222",
-                "--codehash",
-                "0x3333333333333333333333333333333333333333333333333333333333333333",
-                "--worksize",
-                "1048576",
-                "--zeros",
-                &target.to_string(),
-                "--min-runtime-secs",
-                &minimum.to_string(),
-                "--max-runtime-secs",
-                &maximum.to_string(),
-                "--abi",
-            ])
-            .output()
-            .unwrap();
+        let mut command = Command::new(env!("CARGO_BIN_EXE_salty"));
+        command.args([
+            "mine",
+            "--factory",
+            "0x1111111111111111111111111111111111111111",
+            "--caller",
+            "0x2222222222222222222222222222222222222222",
+            "--codehash",
+            "0x3333333333333333333333333333333333333333333333333333333333333333",
+            "--worksize",
+            "1048576",
+            "--zeros",
+            &target.to_string(),
+            "--min-runtime-secs",
+            &minimum.to_string(),
+            "--abi",
+        ]);
+        if let Some(maximum) = maximum {
+            command.args(["--max-runtime-secs", &maximum.to_string()]);
+        }
+        let output = command.output().unwrap();
         assert_eq!(
             output.status.code(),
             Some(exit_code),

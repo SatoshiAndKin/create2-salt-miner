@@ -131,7 +131,17 @@ profiles. `TRAIN_WORKSIZE` defaults to `71303168` (TOML `0x4400000`) for PGO and
 BOLT. Other training inputs use the `TRAIN_*` variables in `Justfile`. Keep
 `RUSTFLAGS` the same for every step; Linux release CI uses `-C target-cpu=x86-64`.
 
-Windows training uses this sequence after the final source and lockfile changes:
+Windows PGO is currently blocked. Stock Rust `1.98.0` does not include
+`profiler_builtins` for `x86_64-pc-windows-gnu`. `just windows-check` passes, but
+`just windows-pgo-instrument` fails with compiler error E0463. Rust enables the
+profiling runtime for its MSVC and GNU LLVM distributions; keeping the current
+GNU target requires a custom Rust build with profiling enabled. See the
+[Rust 1.98.0 build configuration](https://github.com/rust-lang/rust/blob/1.98.0/src/ci/github-actions/jobs.yml#L659-L738).
+The Windows target decision, native training, and a successful PGO release build
+remain open. No valid Windows profile or training bundle has been produced.
+
+After resolving that compiler requirement, use this training sequence after the
+final source and lockfile changes:
 
 1. Run `just windows-pgo-instrument` on the cross-build host. It writes
    `target/windows-pgo-bundle.zip` with the instrumented GNU executable, compiler

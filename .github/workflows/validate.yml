@@ -49,10 +49,10 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: just,cross
-      - name: Check Windows and package the native training executable
-        run: |
-          just windows-check
-          just windows-pgo-instrument
+      - name: Check the Windows target
+        run: just windows-check
+      - name: Package the native Windows training executable
+        run: just windows-pgo-instrument
       - uses: actions/upload-artifact@v4
         with:
           name: windows-pgo-bundle
