@@ -139,3 +139,21 @@ PGO training produced 10220 functions with a maximum function count of 1020;
 profile validation and the optimized build passed. CI uploaded the Linux binary
 and profiles. Windows cross-check passed again in that run; instrumentation
 remains blocked by the missing GNU profiling runtime.
+
+## 2026-09-10: marginal candidates under the revised gain gate
+
+The user replaced the baseline-range gate with paired confidence testing. Retry
+threadgroup size and packed state first, then revisit other marginal ideas.
+Use two separate sets of five alternating pairs, reversing the starting order
+in set two. Each sample uses eight warmup batches and 32 timed batches, or
+2281701376 completed hashes. Each set starts with 64 warmup batches and a
+32-batch baseline measurement. Keep factory, caller, codehash, and worksize
+unchanged. Run no builds or other mining commands during measurements.
+
+Accept only when both set medians are positive and the pooled paired 95%
+bootstrap interval excludes zero. Use 20000 percentile bootstrap resamples,
+resampling pairs within each set, with fixed seed 71303168. Record every sample,
+including outliers, startup, easy/difficult timed mining, and raw ABI output.
+This is an estimate from these measurements, not a performance claim for other
+hardware. Keep the mining correctness and timeout checks. Confirmation runs and
+retries do not count as new distinct optimization ideas.
