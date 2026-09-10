@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.1](https://github.com/SatoshiAndKin/create2-salt-miner/compare/salty-v0.3.0...salty-v0.3.1) (2026-09-10)
+
+
+### Bug Fixes
+
+* enforce mining limits across local and remote jobs ([8fced24](https://github.com/SatoshiAndKin/create2-salt-miner/commit/8fced24df9928eba20545e00272fdf3b0280e518))
+* honor mining limits, validate PGO, and speed up GPU mining ([549fd17](https://github.com/SatoshiAndKin/create2-salt-miner/commit/549fd177fc2041e89f49fdc41d61e45c2f2e6233))
+* migrate stored request keys and honor Cargo target paths ([71e7669](https://github.com/SatoshiAndKin/create2-salt-miner/commit/71e7669b02cb2d51ccf5453238045fb7179db779))
+* preserve stored requests and use configured Windows build paths ([17010d9](https://github.com/SatoshiAndKin/create2-salt-miner/commit/17010d951d3d078f3219d201d23dc0e4096acaf4))
+
+
+### Performance Improvements
+
+* make kernel optimizations work across GPU compilers ([76f24fe](https://github.com/SatoshiAndKin/create2-salt-miner/commit/76f24fe8763870d9ea5e9bbf84311f307af15ab7))
+* partially unroll Keccak rounds after paired Metal trials ([6a02e93](https://github.com/SatoshiAndKin/create2-salt-miner/commit/6a02e935344bee2899771ff3ee9f037f5af0682d))
+* use paired 32-bit Keccak rotations after Metal confirmation ([3055751](https://github.com/SatoshiAndKin/create2-salt-miner/commit/305575174838b3008345226540169d2090de2f2a))
+
 ## [0.3.0](https://github.com/SatoshiAndKin/create2-salt-miner/compare/salty-v0.2.0...salty-v0.3.0) (2026-08-09)
 
 
