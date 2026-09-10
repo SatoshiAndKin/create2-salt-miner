@@ -116,3 +116,40 @@ This project is heavily inspired by 0age's `create2crunch`. The code for the Ope
 
 - [0age](https://github.com/0age)
 - [Khronos OpenCL SDK](https://github.com/KhronosGroup/OpenCL-SDK)
+
+## Profile-guided releases
+
+Use Rust `1.98.0` and its `llvm-tools-preview` component. PGO is required for
+Linux and Windows release artifacts. Python 3.9+, `just`, and `cargo-pgo` are
+build tools; native Windows training needs PowerShell, `just`, and an installed
+OpenCL driver.
+
+`just pgo-release` runs instrumentation, training, profile merging and validation,
+and optimization in order. It removes old raw profiles before training. Linux
+release CI runs this helper with PoCL. Optional BOLT uses those same Linux raw
+profiles. `TRAIN_WORKSIZE` defaults to `71303168` (TOML `0x4400000`) for PGO and
+BOLT. Other training inputs use the `TRAIN_*` variables in `Justfile`. Keep
+`RUSTFLAGS` the same for every step; Linux release CI uses `-C target-cpu=x86-64`.
+
+Windows training uses this sequence after the final source and lockfile changes:
+
+1. Run `just windows-pgo-instrument` on the cross-build host. It writes
+   `target/windows-pgo-bundle.zip` with the instrumented GNU executable, compiler
+   identity, source and lockfile hashes, compiler flags, and training inputs.
+2. Copy the bundle to native Windows. From this checkout, run
+   `just windows-pgo-train <bundle.zip>`. You can also extract the bundle to an
+   empty directory and use its included `Justfile` with the original zip path.
+   The helper checks the executable, uses an empty working directory, lists
+   OpenCL devices, and mines with the recorded inputs. It writes
+   `<bundle.zip>.results.zip` with fresh raw profiles and training metadata.
+3. Copy the results back. Run `just windows-pgo-import <results.zip>`. The helper
+   rejects changed sources, lockfiles, compilers, flags, or training inputs. It
+   merges with Rust's matching LLVM tool and rejects empty or invalid profiles.
+4. Run `just windows`. It checks metadata and the profile checksum, then mounts
+   `.pgo` at `/salty-pgo` inside the cross container for the optimized build.
+5. Commit `.pgo/salty-windows-x86_64.profdata` and its `.json` metadata together.
+   Retrain after source, lockfile, or build-input changes, including release
+   version changes. A missing or stale profile blocks the Windows release.
+
+A cross-build does not validate an OpenCL driver or Windows performance. Run the
+bundle on the Windows machine that will mine.
