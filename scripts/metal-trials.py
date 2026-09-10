@@ -81,6 +81,7 @@ def main() -> None:
     parser.add_argument("--pairs", type=int, default=5)
     parser.add_argument("--warmup-batches", type=int, default=8)
     parser.add_argument("--batches", type=int, default=32)
+    parser.add_argument("--zeros", type=int, default=21)
     args = parser.parse_args()
     if args.pairs < 5 or args.warmup_batches < 8 or args.batches < 32:
         parser.error(
@@ -88,6 +89,8 @@ def main() -> None:
         )
     if args.output.exists():
         parser.error("Output already exists; preserve the earlier measurements")
+    if not 0 <= args.zeros <= 0xFFFF_FFFF:
+        parser.error("The zero-byte target must fit in u32")
     inputs = [
         "--factory",
         "0x0000000000FFe8B47B3e2130213B802212439497",
@@ -99,6 +102,7 @@ def main() -> None:
         "71303168",
     ]
     binaries = {"baseline": args.baseline, "candidate": args.candidate}
+    benchmark_inputs = [*inputs, "--zeros", str(args.zeros)]
     data = {
         "binaries": {
             name: {
@@ -109,6 +113,7 @@ def main() -> None:
         },
         "protocol": {
             "sets": 2,
+            "zero_byte_target": args.zeros,
             "pairs_per_set": args.pairs,
             "warmup_batches": args.warmup_batches,
             "timed_batches": args.batches,
@@ -125,7 +130,14 @@ def main() -> None:
         runs = {
             "preconditioning": measure(
                 args.baseline,
-                ["bench", *inputs, "--warmup-batches", "64", "--batches", "32"],
+                [
+                    "bench",
+                    *benchmark_inputs,
+                    "--warmup-batches",
+                    "64",
+                    "--batches",
+                    "32",
+                ],
             ),
             "pairs": [],
         }
@@ -143,7 +155,7 @@ def main() -> None:
                     binaries[name],
                     [
                         "bench",
-                        *inputs,
+                        *benchmark_inputs,
                         "--warmup-batches",
                         str(args.warmup_batches),
                         "--batches",
@@ -175,7 +187,8 @@ def main() -> None:
     save(args.output, data)
     for name, binary in binaries.items():
         startup = measure(
-            binary, ["bench", *inputs, "--warmup-batches", "0", "--batches", "1"]
+            binary,
+            ["bench", *benchmark_inputs, "--warmup-batches", "0", "--batches", "1"],
         )
         startup["untimed_wall_seconds"] = (
             startup["wall_seconds"] - 71303168 / startup["metrics"]["attempts_per_sec"]

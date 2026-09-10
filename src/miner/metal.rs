@@ -230,11 +230,12 @@ pub(super) fn benchmark_miner(
         "benchmark batch count must be greater than zero"
     );
     let engine = MetalMiner::new(config)?;
+    let min_zeros = u32::try_from(config.zeros).context("zero-byte target does not fit in u32")?;
     if warmup_batches > 0 {
         engine.run_batches(
             0,
             0,
-            21,
+            min_zeros,
             u32::try_from(warmup_batches).context("warmup batch count does not fit in u32")?,
         )?;
     }
@@ -242,7 +243,7 @@ pub(super) fn benchmark_miner(
     engine.run_batches(
         0,
         u32::try_from(warmup_batches).context("warmup batch count does not fit in u32")?,
-        21,
+        min_zeros,
         u32::try_from(batches).context("benchmark batch count does not fit in u32")?,
     )?;
     let elapsed_ns = start.elapsed().as_nanos();
@@ -342,14 +343,14 @@ mod tests {
         );
         for tail in [0_u32, 0x1234_5678, u32::MAX] {
             let salt = FixedBytes::from(tail.to_le_bytes());
-            let qualifying_nonce = (0_u32..10_000)
+            let qualifying_nonce = (0_u32..100_000)
                 .find(|&nonce| {
                     mining_outcome(&config, &salt, u64::from(nonce) << 32)
                         .unwrap()
                         .score
-                        >= 1
+                        >= 2
                 })
-                .expect("fixed workload has a positive-score nonce");
+                .expect("fixed workload has a nonce with two zero bytes");
             for nonce in [0, 1, u32::MAX - 1, u32::MAX, qualifying_nonce] {
                 let solution = u64::from(nonce) << 32;
                 let reference = mining_outcome(&config, &salt, solution)?;

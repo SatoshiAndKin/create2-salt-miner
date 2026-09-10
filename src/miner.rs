@@ -367,7 +367,7 @@ fn benchmark_opencl_miner(config: AppConfig, warmup_batches: u64, batches: u64) 
     let queue = Queue::new(&context, device, None).wrap_err("failed to create OpenCL queue")?;
     let program_queue = ProQue::new(context, queue, program, Some(worksize));
 
-    let solutions = vec![0_u64; 1];
+    let mut solutions = vec![0_u64; 1];
     let solutions_buffer = Buffer::builder()
         .queue(program_queue.queue().clone())
         .flags(MemFlags::new().write_only())
@@ -379,7 +379,10 @@ fn benchmark_opencl_miner(config: AppConfig, warmup_batches: u64, batches: u64) 
         .kernel_builder("hashMessage")
         .arg_named("message", 0_u32)
         .arg_named("nonce", 0_u32)
-        .arg_named("min_zeros", 21_u32)
+        .arg_named(
+            "min_zeros",
+            u32::try_from(config.zeros).wrap_err("zero-byte target does not fit in u32")?,
+        )
         .arg_named("solutions", &solutions_buffer)
         .build()
         .wrap_err("failed to build OpenCL kernel")?;
@@ -393,6 +396,10 @@ fn benchmark_opencl_miner(config: AppConfig, warmup_batches: u64, batches: u64) 
         .queue()
         .finish()
         .wrap_err("failed to finish warmup")?;
+    solutions_buffer
+        .write(&solutions)
+        .enq()
+        .wrap_err("failed to clear benchmark solutions")?;
 
     let start = Instant::now();
     for _ in 0..batches {
@@ -406,6 +413,10 @@ fn benchmark_opencl_miner(config: AppConfig, warmup_batches: u64, batches: u64) 
         .queue()
         .finish()
         .wrap_err("failed to finish benchmark")?;
+    solutions_buffer
+        .read(&mut solutions)
+        .enq()
+        .wrap_err("failed to read benchmark solutions")?;
     let elapsed_ns = start.elapsed().as_nanos();
     let attempts = u128::from(worksize) * u128::from(batches);
     Ok(attempts * 1_000_000_000 / elapsed_ns)
@@ -676,9 +687,9 @@ mod tests {
             .build()?;
         for tail in [0_u32, 0x1234_5678, u32::MAX] {
             let salt = FixedBytes::from(tail.to_le_bytes());
-            let qualifying_nonce = (1_u64..10_000)
-                .find(|&nonce| mining_outcome(&config, &salt, nonce).unwrap().score >= 1)
-                .expect("fixed workload has a positive-score nonce");
+            let qualifying_nonce = (1_u64..100_000)
+                .find(|&nonce| mining_outcome(&config, &salt, nonce).unwrap().score >= 2)
+                .expect("fixed workload has a nonce with two zero bytes");
             // Exercise both words and the byte split used by packed state setup.
             for nonce in [
                 0,

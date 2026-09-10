@@ -96,6 +96,10 @@ struct BenchArgs {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     worksize: Option<u32>,
 
+    /// Required zero bytes per address; 21 measures hashing without matches
+    #[arg(long, default_value_t = 21)]
+    zeros: u32,
+
     /// Timed kernel batches
     #[arg(long, default_value_t = 20)]
     batches: u64,
@@ -275,7 +279,7 @@ fn build_bench_app_config(args: &BenchArgs) -> Result<AppConfig> {
             "codehash",
         )?,
         worksize: args.worksize.unwrap_or(0x4400000_u32),
-        zeros: 21,
+        zeros: args.zeros as usize,
         one: false,
         abi: true,
         min_runtime_secs: None,
@@ -387,6 +391,7 @@ mod tests {
             caller: None,
             codehash: None,
             worksize: None,
+            zeros: 21,
             batches: 20,
             warmup_batches: 3,
         };
@@ -416,6 +421,7 @@ mod tests {
                 "0x3333333333333333333333333333333333333333333333333333333333333333".to_owned(),
             ),
             worksize: Some(128),
+            zeros: 0,
             batches: 20,
             warmup_batches: 3,
         };
@@ -426,6 +432,7 @@ mod tests {
         assert_eq!(config.caller, [0x22_u8; 20]);
         assert_eq!(config.codehash, [0x33_u8; 32]);
         assert_eq!(config.worksize, 128);
+        assert_eq!(config.zeros, 0);
 
         Ok(())
     }

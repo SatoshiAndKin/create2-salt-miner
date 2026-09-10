@@ -101,6 +101,12 @@ keys include both limits. See `/api-docs/openapi.json` for the API schema.
 
 ## Performance Benchmarks
 
+Run `salty bench` for warmed, completed hashes per second. The default
+`--zeros 21` hashes without matches. Use `--zeros 1` to include frequent
+solution writes, or `--zeros 0` to exercise the initial fallback workload.
+Compare the same inputs, worksize, warmup count, batch count, and target.
+The benchmark includes solution-buffer readback. Measure startup separately.
+
 | Platform          | Platform Type  | Speed |
 | ----------------- | -------------- | ----- |
 | Nvidia RTX 3070   | GPU (CUDA)     | 1,250 |
