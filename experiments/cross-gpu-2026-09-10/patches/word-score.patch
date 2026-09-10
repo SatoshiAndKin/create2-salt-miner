@@ -1,0 +1,22 @@
+--- a/src/kernels/keccak256.cl
++++ b/src/kernels/keccak256.cl
+@@ -239,13 +239,14 @@
+ 
+ static inline bool hasZeroBytes(THREAD uchar const *d,
+                                 uint const min_zero_bytes) {
+-  uchar zero_bytes = 0;
++  THREAD uint const *words = (THREAD uint const *)d;
++  uint zero_bytes = 0;
+ #pragma unroll
+-  for (uint i = 0; i < 20; ++i) {
+-    if (d[i] == 0)
+-      ++zero_bytes;
++  for (uint i = 0; i < 5; ++i) {
++    const uint word = words[i];
++    const uint nonzero = ((word & 0x7f7f7f7fu) + 0x7f7f7f7fu) | word;
++    zero_bytes += popcount(~(nonzero | 0x7f7f7f7fu));
+   }
+-
+   return zero_bytes >= min_zero_bytes;
+ }
+ 

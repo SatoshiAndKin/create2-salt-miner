@@ -1,0 +1,13 @@
+OpenCL Platforms:
+	Platform ID: 0
+	Name: NVIDIA CUDA
+	Version: OpenCL 3.0 CUDA 13.2.82
+	Profile: FULL_PROFILE
+	Devices:
+		Device ID: 0
+		Type: GPU
+		Name: Tesla T4
+		Vendor: NVIDIA Corporation
+		DriverVersion: 595.71.05
+		OpenclCVersion: OpenCL C 1.2
+Selected Platform: 0

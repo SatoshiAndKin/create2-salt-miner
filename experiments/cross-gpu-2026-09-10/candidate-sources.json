@@ -1,0 +1,40 @@
+{
+  "builtin-rotate": {
+    "reference": "c4aab3a",
+    "reference_kernel_sha256": "0b9a9a393ba45083ec2f6ba6c1c061590142f494694167daa3b52711809d8c14",
+    "candidate_kernel_sha256": "1a5f66648a8e40938add41e8adbde1f570ec7900b694b21a2a86197d07ac83a3"
+  },
+  "compiler-unroll": {
+    "reference": "builtin-rotate",
+    "reference_kernel_sha256": "1a5f66648a8e40938add41e8adbde1f570ec7900b694b21a2a86197d07ac83a3",
+    "candidate_kernel_sha256": "c3325766e6c62f114580213266aa65c69308105fd92768a9e39a7e78eb23b60a"
+  },
+  "unroll8": {
+    "reference": "builtin-rotate",
+    "reference_kernel_sha256": "1a5f66648a8e40938add41e8adbde1f570ec7900b694b21a2a86197d07ac83a3",
+    "candidate_kernel_sha256": "831a80bd889e599383cbf9378d2ef98163f8fba23e81a21df2664800b427f2b4"
+  },
+  "union-rotate": {
+    "reference": "compiler-unroll",
+    "reference_kernel_sha256": "c3325766e6c62f114580213266aa65c69308105fd92768a9e39a7e78eb23b60a",
+    "candidate_kernel_sha256": "905d620060d088db9c254384887b842788b50a7b48571b42cae3493ab4bae989"
+  },
+  "packed-state": {
+    "reference": "compiler-unroll",
+    "reference_kernel_sha256": "c3325766e6c62f114580213266aa65c69308105fd92768a9e39a7e78eb23b60a",
+    "candidate_kernel_sha256": "719f4bbb091b40adfe8230d6e4712431b0bda2ef23ade3cd5d5b204426392bb2"
+  },
+  "union-packed": {
+    "reference": "union-rotate",
+    "reference_kernel_sha256": "905d620060d088db9c254384887b842788b50a7b48571b42cae3493ab4bae989",
+    "candidate_kernel_sha256": "6c498ddda1a0434d2ba56f12849895d75ed3a29d5d6b687c749767a05ef140f5"
+  },
+  "word-score": {
+    "reference": "union-packed",
+    "reference_kernel_sha256": "6c498ddda1a0434d2ba56f12849895d75ed3a29d5d6b687c749767a05ef140f5",
+    "candidate_kernel_sha256": "a7ae34c1dc2a5e366581b459158ab8fa85aec259666a923aaab4907d2807b8f7"
+  },
+  "committed_source": "76f24fe8763870d9ea5e9bbf84311f307af15ab7",
+  "committed_kernel_sha256": "67542e2239b923e1b9f6e0ba8871e2776d290bfe0d8b578a6db5508258147fef",
+  "committed_note": "The committed kernel differs from word-score only by line wrapping and a scoring explanation."
+}

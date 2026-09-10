@@ -1,0 +1,190 @@
+   Compiling cfg-if v1.0.4
+   Compiling stable_deref_trait v1.2.1
+   Compiling libc v0.2.189
+   Compiling serde_core v1.0.229
+   Compiling itoa v1.0.18
+   Compiling zerofrom v0.1.8
+   Compiling typenum v1.20.1
+   Compiling bytes v1.12.1
+   Compiling pin-project-lite v0.2.17
+   Compiling futures-core v0.3.33
+   Compiling smallvec v1.15.2
+   Compiling crossbeam-utils v0.8.22
+   Compiling writeable v0.6.3
+   Compiling const-oid v0.10.2
+   Compiling litemap v0.8.2
+   Compiling yoke v0.8.3
+   Compiling num-traits v0.2.19
+   Compiling zerovec v0.11.6
+   Compiling zerotrie v0.2.4
+   Compiling utf8_iter v1.0.4
+   Compiling hashbrown v0.17.1
+   Compiling equivalent v1.0.2
+   Compiling zerocopy v0.8.56
+   Compiling tower-service v0.3.3
+   Compiling futures-channel v0.3.33
+   Compiling icu_properties_data v2.2.0
+   Compiling cpufeatures v0.3.0
+   Compiling http v1.5.0
+   Compiling mio v1.2.2
+   Compiling socket2 v0.6.5
+   Compiling getrandom v0.3.4
+   Compiling crossbeam-epoch v0.9.20
+   Compiling zmij v1.0.23
+   Compiling hybrid-array v0.4.14
+   Compiling tinystr v0.8.3
+   Compiling potential_utf v0.1.5
+   Compiling rand_core v0.9.5
+   Compiling icu_normalizer_data v2.2.0
+   Compiling icu_collections v2.2.0
+   Compiling tokio v1.53.1
+   Compiling icu_locale_core v2.2.0
+   Compiling httparse v1.10.1
+   Compiling slab v0.4.12
+   Compiling rand_core v0.10.1
+   Compiling same-file v1.0.6
+   Compiling futures-task v0.3.33
+   Compiling memchr v2.8.3
+   Compiling sync_wrapper v1.0.2
+   Compiling httpdate v1.0.3
+   Compiling atomic-waker v1.1.2
+   Compiling http-body v1.1.0
+   Compiling block-buffer v0.12.1
+   Compiling crypto-common v0.2.2
+   Compiling tower-layer v0.3.3
+   Compiling percent-encoding v2.3.2
+   Compiling mime v0.3.17
+   Compiling http-body-util v0.1.4
+   Compiling futures-util v0.3.33
+   Compiling walkdir v2.5.0
+   Compiling crossbeam-deque v0.8.7
+   Compiling icu_provider v2.2.0
+   Compiling num-traits v0.1.43
+   Compiling crossbeam-channel v0.5.16
+   Compiling crossbeam-queue v0.3.13
+   Compiling toml_write v0.1.2
+   Compiling winnow v0.7.15
+   Compiling digest v0.11.3
+   Compiling icu_normalizer v2.2.0
+   Compiling serde v1.0.229
+   Compiling indexmap v2.14.0
+   Compiling sha2 v0.11.0
+   Compiling serde_json v1.0.151
+   Compiling icu_properties v2.2.0
+   Compiling core-foundation-sys v0.8.7
+   Compiling bitflags v2.13.1
+   Compiling serde_spanned v0.6.9
+   Compiling toml_datetime v0.6.11
+   Compiling rust-embed-utils v8.12.0
+   Compiling core-foundation v0.10.1
+   Compiling crossbeam v0.8.4
+   Compiling serde_path_to_error v0.1.20
+   Compiling enum_primitive v0.1.1
+   Compiling axum-core v0.5.6
+   Compiling getrandom v0.4.3
+   Compiling ocl-core-vector v0.1.1
+   Compiling num-complex v0.4.6
+   Compiling keccak v0.2.1
+   Compiling idna_adapter v1.2.2
+   Compiling malloc_buf v0.0.6
+   Compiling cl-sys v0.4.3
+   Compiling thiserror v1.0.69
+   Compiling unicode-width v0.2.2
+   Compiling foreign-types-shared v0.3.1
+   Compiling matchit v0.8.4
+   Compiling unicase v2.9.0
+   Compiling clap_lex v1.1.0
+   Compiling anstyle v1.0.14
+   Compiling futures v0.1.31
+   Compiling bitflags v1.3.2
+   Compiling toml_edit v0.22.27
+   Compiling ppv-lite86 v0.2.21
+   Compiling clap_builder v4.6.6
+   Compiling hyper v1.11.0
+   Compiling tower v0.5.3
+   Compiling mime_guess v2.0.5
+   Compiling rand_chacha v0.9.0
+   Compiling console v0.16.4
+   Compiling rand v0.9.5
+   Compiling foreign-types v0.5.0
+   Compiling sha3 v0.11.0
+   Compiling objc v0.2.7
+   Compiling idna v1.1.0
+   Compiling hyper-util v0.1.20
+   Compiling ruint v1.20.0
+   Compiling qutex v0.2.6
+   Compiling core-graphics-types v0.2.0
+   Compiling utoipa v5.5.0
+   Compiling rust-embed v8.12.0
+   Compiling form_urlencoded v1.2.2
+   Compiling chacha20 v0.10.1
+   Compiling axum v0.8.9
+   Compiling libsqlite3-sys v0.38.2
+   Compiling ocl-core v0.11.5
+   Compiling uncased v0.9.10
+   Compiling portable-atomic v1.14.0
+   Compiling derive_more v2.1.1
+   Compiling const-hex v1.19.1
+   Compiling unit-prefix v0.5.2
+   Compiling log v0.4.33
+   Compiling toml v0.8.23
+   Compiling once_cell v1.21.4
+   Compiling nodrop v0.1.14
+   Compiling fallible-iterator v0.3.0
+   Compiling base64 v0.22.1
+   Compiling indenter v0.3.4
+   Compiling block v0.1.6
+   Compiling fallible-streaming-iterator v0.1.9
+   Compiling metal v0.33.0
+   Compiling rusqlite v0.40.2
+   Compiling figment v0.10.19
+   Compiling eyre v0.6.12
+   Compiling clap v4.6.6
+   Compiling indicatif v0.18.6
+   Compiling ocl v0.19.7
+   Compiling alloy-primitives v1.6.1
+   Compiling rand v0.10.2
+   Compiling url v2.5.8
+   Compiling utoipa-swagger-ui v9.0.2
+   Compiling salty v0.3.0 (/Users/bryan/code/create2-salt-miner/target/cross-gpu/release-final/source)
+    Finished `release` profile [optimized] target(s) in 26.40s
+warning: the following packages contain code that will be rejected by a future version of Rust: block v0.1.6
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 2`
+────────────
+ Nextest run ID 15e66561-fef8-4369-bb58-718cf14941b5 with nextest profile: default
+    Starting 33 tests across 3 binaries
+        PASS [   2.127s] ( 1/33) salty::runtime native_timed_mining_qualifies_or_returns_fallback
+        PASS [   0.010s] ( 2/33) salty::runtime remote_request_keeps_limits_and_returns_fallback_with_exit_two
+        PASS [   0.079s] ( 3/33) salty::scoring native_zero_byte_scoring_matches_cpu_for_all_byte_values
+        PASS [   0.008s] ( 4/33) salty::bin/salty display::tests::combinations_counts_address_byte_pairs
+        PASS [   0.007s] ( 5/33) salty::bin/salty display::tests::doubling_hashrate_halves_expected_eta
+        PASS [   0.007s] ( 6/33) salty::bin/salty display::tests::eta_is_memoryless_after_elapsed_time_without_hit
+        PASS [   0.007s] ( 7/33) salty::bin/salty display::tests::expected_attempts_for_realistic_width_known_value
+        PASS [   0.007s] ( 8/33) salty::bin/salty display::tests::expected_attempts_for_score_beyond_address_bytes_is_impossible
+        PASS [   0.006s] ( 9/33) salty::bin/salty display::tests::expected_attempts_for_score_one_uses_at_least_one_zero_byte
+        PASS [   0.006s] (10/33) salty::bin/salty display::tests::expected_attempts_for_score_zero_is_one
+        PASS [   0.006s] (11/33) salty::bin/salty display::tests::probability_for_small_width_uses_binomial_at_least_score
+        PASS [   0.006s] (12/33) salty::bin/salty display::tests::seven_zero_bytes_anywhere_is_much_easier_than_seven_leading_zero_bytes
+        PASS [   0.078s] (13/33) salty::bin/salty miner::metal::tests::metal_kernel_returns_a_cpu_verified_nonce
+        PASS [   0.041s] (14/33) salty::bin/salty miner::metal::tests::metal_scores_match_cpu_at_nonce_boundaries
+        PASS [   0.007s] (15/33) salty::bin/salty miner::tests::absent_minimum_adds_no_delay_but_requires_qualification
+        PASS [   0.006s] (16/33) salty::bin/salty miner::tests::maximum_stops_with_fallback_or_no_candidate_and_overrides_minimum
+        PASS [   0.006s] (17/33) salty::bin/salty miner::tests::mining_exit_status_requires_target
+        PASS [   0.006s] (18/33) salty::bin/salty miner::tests::stop_mode_owns_fallback_threshold
+        PASS [   0.006s] (19/33) salty::bin/salty miner::tests::stop_requires_target_and_minimum_before_maximum
+        PASS [   0.006s] (20/33) salty::bin/salty server::tests::api_schema_exposes_both_optional_limits
+        PASS [   0.007s] (21/33) salty::bin/salty server::tests::cache_separates_both_limits_and_stores_actual_maximum
+        PASS [   0.006s] (22/33) salty::bin/salty server::tests::limits_survive_serialization_normalization_and_queue_restart
+        PASS [   1.081s] (23/33) salty::bin/salty server::tests::native_queued_maximum_returns_fallback_and_measured_time
+        PASS [   0.007s] (24/33) salty::bin/salty server::tests::normalization_preserves_limit_validation_and_absent_limits
+        PASS [   0.006s] (25/33) salty::bin/salty server::tests::parse_http_response_returns_status_and_body
+        PASS [   0.007s] (26/33) salty::bin/salty server::tests::remote_mine_endpoint_appends_mine_to_base_url
+        PASS [   0.006s] (27/33) salty::bin/salty server::tests::remote_mine_endpoint_preserves_existing_base_path
+        PASS [   0.006s] (28/33) salty::bin/salty server::tests::remote_mine_endpoint_rejects_https
+        PASS [   0.006s] (29/33) salty::bin/salty server::tests::response_preserves_fallback_and_measured_runtime
+        PASS [   0.006s] (30/33) salty::bin/salty tests::bench_config_has_built_in_defaults
+        PASS [   0.006s] (31/33) salty::bin/salty tests::bench_config_honors_explicit_args
+        PASS [   0.007s] (32/33) salty::bin/salty tests::cli_limits_override_config_and_preserve_unspecified_limit
+        PASS [   0.006s] (33/33) salty::bin/salty tests::remote_fallback_and_empty_results_exit_with_two
+────────────
+     Summary [   3.593s] 33 tests run: 33 passed, 0 skipped

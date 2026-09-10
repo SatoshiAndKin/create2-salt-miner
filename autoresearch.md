@@ -288,7 +288,10 @@ the measured mining workload spends its time on the GPU. No nightly host-code
 experiment is justified by these samples. No compiler gain is claimed, and the
 stable release pin remains 1.98.0.
 
-## Final combined measurements and delivery
+## Mac combined measurements before Linux GPU verification
+
+These historical results cover the first two retained kernel changes. The
+cross-GPU revision below supersedes them for the current code.
 
 The final code retains partial round unrolling and paired 32-bit rotations.
 The corrected baseline uses the kernel from `8fced24` with the same current
@@ -348,3 +351,80 @@ The Windows release repair remains incomplete: stock Rust 1.98.0 GNU cannot
 build the instrumented executable without `profiler_builtins`. A supported
 target or compiler build, native Windows training, a committed fresh profile,
 and a successful profile-guided Windows release build are still required.
+
+## 2026-09-10: shared kernel improvements on Mac and ski-lambo-1
+
+Native testing on `ski-lambo-1` found a real regression in the first Mac-retained
+kernel: **-16.45%** with fresh PGO on the Tesla T4, with paired 95% interval
+[-16.56%, -16.19%]. Isolated tests identified paired rotations as the main cost.
+The initial negative results remain in
+[`experiments/ski-lambo-1-2026-09-10`](experiments/ski-lambo-1-2026-09-10).
+
+The device audit found no worksize-dependent allocation based on Mac memory.
+Worksize 71303168 counts hashes per dispatch. Metal queries the pipeline's
+execution width and maximum group size, then aligns and caps its preference
+of 256 threads. OpenCL lets the driver select the local group. Removing the
+Metal preference and using its detected maximum produced -0.23%, with interval
+[-1.23%, +1.06%], so that trial was rejected. A maximum supported size did not
+improve this kernel's measured throughput.
+
+Commit `76f24fe` removes the fixed round-loop unroll hint and uses the existing
+union to express paired rotations. It also retains packed state initialization,
+which improved T4 throughput in its isolated retry. These are retries within
+the earlier ideas. NVIDIA PTX showed a further opportunity in address scoring:
+twenty byte tests and additions. The ninth idea replaces these with exact
+zero-byte masks and popcounts over five words. Its incremental T4 gain is
+0.94%, with interval [+0.69%, +1.34%]; Mac shows no repeatable change.
+The final shared kernel adds no vendor/model checks or tuning flags.
+
+Nine distinct ideas have now been tested. Four remain: the round loop with
+compiler-selected unrolling, union-based paired rotations, packed state, and
+word scoring. Five remain rejected: invariant bindings, packed arguments,
+threadgroup tuning, reduced chi storage, and the atomic guard. The complete
+retry table, patches, compiler resources, and raw data are in
+[`experiments/cross-gpu-2026-09-10`](experiments/cross-gpu-2026-09-10).
+
+All final builds use source `76f24fe`, with only the baseline kernel replaced
+by `8fced24`. Each uses Rust 1.98.0, matching LLVM 22.1.8, explicit native target,
+`-C target-cpu=native`, and the existing release options. Separate clean build
+directories produced plain and freshly trained PGO builds for each variant.
+Default `just pgo-release` passed on both hosts. All four profiles passed
+validation before optimization. No builds overlapped timing on the same host.
+
+| Host | Final comparison | Median paired gain | Paired 95% interval |
+| --- | --- | ---: | --- |
+| Mac M4 Max | Code without PGO | **+64.09%** | [+59.22%, +69.35%] |
+| Mac M4 Max | Both builds with fresh PGO | **+34.08%** | [+32.85%, +34.97%] |
+| Mac M4 Max | Both builds with fresh PGO, matching target 1 | **+34.24%** | [+33.50%, +37.95%] |
+| Mac M4 Max | Direct PGO effect on final code | -0.39% | [-2.45%, +1.84%] |
+| Linux Tesla T4 | Code without PGO | **+2.07%** | [+1.59%, +2.44%] |
+| Linux Tesla T4 | Both builds with fresh PGO | **+1.41%** | [+0.81%, +2.17%] |
+| Linux Tesla T4 | Both builds with fresh PGO, matching target 1 | **+1.98%** | [+1.69%, +2.25%] |
+| Linux Tesla T4 | Direct PGO effect on final code | -0.0048% | [-0.0426%, +0.0005%] |
+
+Every code comparison passes both positive-set-median and paired confidence
+gates. Each uses two sets of five alternating pairs; the direct PGO control
+uses two sets of ten. The primary PGO baseline range is 27.91% of its median on
+Mac and 9.24% on T4. Mac desktop activity limits comparisons across separate
+run sets. Do not infer a PGO effect by subtracting the plain and PGO code gains.
+The direct controls find no repeatable PGO gain or loss. PGO stays mandatory.
+
+All completed samples count 2281701376 hashes after warmup and include normal
+result readback. Final NVIDIA PTX loads the target after the Keccak round loop;
+the impossible target does not bypass hashing. Matching-target measurements
+also pass on both hosts. Each final comparison passes easy minimum-only mining
+and difficult maximum-limited fallback checks, with exit codes 0/2 and full ABI
+output. Startup and single mining wall-time checks remain separate; no latency
+gain is claimed. CREATE2, nonce coverage, output, and batch limits stay intact.
+
+The new CPU oracle checks 225368 GPU scoring results per host, including all
+byte values, zero/high-bit patterns, and thresholds 0 through 21. Final release
+tests pass on Mac (33 tests) and T4 (32 tests), including existing CREATE2 and
+nonce-boundary checks. Formatting, locked check, strict Clippy, cargo-deny, and
+`just windows-check` pass. The exact runtime commit's
+[Linux CI job](https://github.com/SatoshiAndKin/create2-salt-miner/actions/runs/34479593675/job/102878735028)
+passes all 32 PoCL tests, Python checks, and clean default PGO generation and
+optimization. The Windows job passes cross-check, then still fails PGO
+instrumentation with missing `profiler_builtins` in stock Rust 1.98.0 GNU.
+Windows performance remains unmeasured, and its release fix remains incomplete.
+The draft PR preserves the required native Windows training/profile/build gate.

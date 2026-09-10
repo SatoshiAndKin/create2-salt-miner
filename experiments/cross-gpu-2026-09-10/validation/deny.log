@@ -1,0 +1,300 @@
+warning[duplicate]: found 2 duplicate entries for crate 'bitflags'
+   ┌─ /Users/bryan/code/create2-salt-miner/Cargo.lock:12:1
+   │  
+12 │ ╭ bitflags 1.3.2 registry+https://github.com/rust-lang/crates.io-index
+13 │ │ bitflags 2.13.1 registry+https://github.com/rust-lang/crates.io-index
+   │ ╰─────────────────────────────────────────────────────────────────────┘ lock entries
+   │  
+   ├ bitflags v1.3.2
+     └── ocl-core v0.11.5
+         └── ocl v0.19.7
+             └── salty v0.3.0
+   ├ bitflags v2.13.1
+     ├── core-graphics-types v0.2.0
+     │   └── metal v0.33.0
+     │       └── salty v0.3.0
+     ├── metal v0.33.0 (*)
+     └── rusqlite v0.40.2
+         └── salty v0.3.0 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'cpufeatures'
+   ┌─ /Users/bryan/code/create2-salt-miner/Cargo.lock:34:1
+   │  
+34 │ ╭ cpufeatures 0.2.17 registry+https://github.com/rust-lang/crates.io-index
+35 │ │ cpufeatures 0.3.0 registry+https://github.com/rust-lang/crates.io-index
+   │ ╰───────────────────────────────────────────────────────────────────────┘ lock entries
+   │  
+   ├ cpufeatures v0.2.17
+     └── const-hex v1.19.1
+         └── alloy-primitives v1.6.1
+             └── salty v0.3.0
+   ├ cpufeatures v0.3.0
+     ├── chacha20 v0.10.1
+     │   └── rand v0.10.2
+     │       └── salty v0.3.0
+     ├── keccak v0.2.1
+     │   └── sha3 v0.11.0
+     │       └── alloy-primitives v1.6.1
+     │           └── salty v0.3.0 (*)
+     └── sha2 v0.11.0
+         └── rust-embed-utils v8.12.0
+             ├── rust-embed v8.12.0
+             │   └── utoipa-swagger-ui v9.0.2
+             │       └── salty v0.3.0 (*)
+             └── rust-embed-impl v8.12.0
+                 └── rust-embed v8.12.0 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'getrandom'
+   ┌─ /Users/bryan/code/create2-salt-miner/Cargo.lock:67:1
+   │  
+67 │ ╭ getrandom 0.3.4 registry+https://github.com/rust-lang/crates.io-index
+68 │ │ getrandom 0.4.3 registry+https://github.com/rust-lang/crates.io-index
+   │ ╰─────────────────────────────────────────────────────────────────────┘ lock entries
+   │  
+   ├ getrandom v0.3.4
+     └── rand_core v0.9.5
+         ├── rand v0.9.5
+         │   ├── alloy-primitives v1.6.1
+         │   │   └── salty v0.3.0
+         │   └── ruint v1.20.0
+         │       └── alloy-primitives v1.6.1 (*)
+         └── rand_chacha v0.9.0
+             └── rand v0.9.5 (*)
+   ├ getrandom v0.4.3
+     ├── alloy-primitives v1.6.1
+     │   └── salty v0.3.0
+     └── rand v0.10.2
+         └── salty v0.3.0 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'num-traits'
+    ┌─ /Users/bryan/code/create2-salt-miner/Cargo.lock:107:1
+    │  
+107 │ ╭ num-traits 0.1.43 registry+https://github.com/rust-lang/crates.io-index
+108 │ │ num-traits 0.2.19 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰───────────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ num-traits v0.1.43
+      └── enum_primitive v0.1.1
+          └── ocl-core v0.11.5
+              └── ocl v0.19.7
+                  └── salty v0.3.0
+    ├ num-traits v0.2.19
+      ├── num-complex v0.4.6
+      │   └── ocl-core v0.11.5
+      │       └── ocl v0.19.7
+      │           └── salty v0.3.0
+      ├── num-traits v0.1.43
+      │   └── enum_primitive v0.1.1
+      │       └── ocl-core v0.11.5 (*)
+      ├── ocl v0.19.7 (*)
+      ├── ocl-core v0.11.5 (*)
+      └── ocl-core-vector v0.1.1
+          └── ocl-core v0.11.5 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'r-efi'
+    ┌─ /Users/bryan/code/create2-salt-miner/Cargo.lock:124:1
+    │  
+124 │ ╭ r-efi 5.3.0 registry+https://github.com/rust-lang/crates.io-index
+125 │ │ r-efi 6.0.0 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰─────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ r-efi v5.3.0
+      └── getrandom v0.3.4
+          └── rand_core v0.9.5
+              ├── rand v0.9.5
+              │   ├── alloy-primitives v1.6.1
+              │   │   └── salty v0.3.0
+              │   └── ruint v1.20.0
+              │       └── alloy-primitives v1.6.1 (*)
+              └── rand_chacha v0.9.0
+                  └── rand v0.9.5 (*)
+    ├ r-efi v6.0.0
+      └── getrandom v0.4.3
+          ├── alloy-primitives v1.6.1
+          │   └── salty v0.3.0
+          └── rand v0.10.2
+              └── salty v0.3.0 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'rand'
+    ┌─ /Users/bryan/code/create2-salt-miner/Cargo.lock:126:1
+    │  
+126 │ ╭ rand 0.9.5 registry+https://github.com/rust-lang/crates.io-index
+127 │ │ rand 0.10.2 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰─────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ rand v0.9.5
+      ├── alloy-primitives v1.6.1
+      │   └── salty v0.3.0
+      └── ruint v1.20.0
+          └── alloy-primitives v1.6.1 (*)
+    ├ rand v0.10.2
+      └── salty v0.3.0
+
+warning[duplicate]: found 2 duplicate entries for crate 'rand_core'
+    ┌─ /Users/bryan/code/create2-salt-miner/Cargo.lock:129:1
+    │  
+129 │ ╭ rand_core 0.9.5 registry+https://github.com/rust-lang/crates.io-index
+130 │ │ rand_core 0.10.1 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰──────────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ rand_core v0.9.5
+      ├── rand v0.9.5
+      │   ├── alloy-primitives v1.6.1
+      │   │   └── salty v0.3.0
+      │   └── ruint v1.20.0
+      │       └── alloy-primitives v1.6.1 (*)
+      └── rand_chacha v0.9.0
+          └── rand v0.9.5 (*)
+    ├ rand_core v0.10.1
+      ├── chacha20 v0.10.1
+      │   └── rand v0.10.2
+      │       └── salty v0.3.0
+      ├── getrandom v0.4.3
+      │   ├── alloy-primitives v1.6.1
+      │   │   └── salty v0.3.0 (*)
+      │   └── rand v0.10.2 (*)
+      └── rand v0.10.2 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'syn'
+    ┌─ /Users/bryan/code/create2-salt-miner/Cargo.lock:158:1
+    │  
+158 │ ╭ syn 2.0.119 registry+https://github.com/rust-lang/crates.io-index
+159 │ │ syn 3.0.3 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰───────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ syn v2.0.119
+      ├── derive_arbitrary v1.4.2
+      │   └── arbitrary v1.4.2
+      │       └── zip v3.0.0
+      │           └── (build) utoipa-swagger-ui v9.0.2
+      │               └── salty v0.3.0
+      ├── derive_more-impl v2.1.1
+      │   └── derive_more v2.1.1
+      │       └── alloy-primitives v1.6.1
+      │           └── salty v0.3.0 (*)
+      ├── rust-embed-impl v8.12.0
+      │   └── rust-embed v8.12.0
+      │       └── utoipa-swagger-ui v9.0.2 (*)
+      ├── synstructure v0.13.2
+      │   ├── yoke-derive v0.8.2
+      │   │   └── yoke v0.8.3
+      │   │       ├── icu_collections v2.2.0
+      │   │       │   ├── icu_normalizer v2.2.0
+      │   │       │   │   └── idna_adapter v1.2.2
+      │   │       │   │       └── idna v1.1.0
+      │   │       │   │           └── url v2.5.8
+      │   │       │   │               └── salty v0.3.0 (*)
+      │   │       │   └── icu_properties v2.2.0
+      │   │       │       └── idna_adapter v1.2.2 (*)
+      │   │       ├── icu_provider v2.2.0
+      │   │       │   ├── icu_normalizer v2.2.0 (*)
+      │   │       │   └── icu_properties v2.2.0 (*)
+      │   │       ├── zerotrie v0.2.4
+      │   │       │   ├── icu_properties v2.2.0 (*)
+      │   │       │   └── icu_provider v2.2.0 (*)
+      │   │       └── zerovec v0.11.6
+      │   │           ├── icu_collections v2.2.0 (*)
+      │   │           ├── icu_locale_core v2.2.0
+      │   │           │   ├── icu_properties v2.2.0 (*)
+      │   │           │   └── icu_provider v2.2.0 (*)
+      │   │           ├── icu_normalizer v2.2.0 (*)
+      │   │           ├── icu_properties v2.2.0 (*)
+      │   │           ├── icu_provider v2.2.0 (*)
+      │   │           ├── potential_utf v0.1.5
+      │   │           │   └── icu_collections v2.2.0 (*)
+      │   │           └── tinystr v0.8.3
+      │   │               └── icu_locale_core v2.2.0 (*)
+      │   └── zerofrom-derive v0.1.7
+      │       └── zerofrom v0.1.8
+      │           ├── icu_collections v2.2.0 (*)
+      │           ├── icu_provider v2.2.0 (*)
+      │           ├── yoke v0.8.3 (*)
+      │           ├── zerotrie v0.2.4 (*)
+      │           └── zerovec v0.11.6 (*)
+      ├── thiserror-impl v1.0.69
+      │   └── thiserror v1.0.69
+      │       ├── ocl v0.19.7
+      │       │   └── salty v0.3.0 (*)
+      │       └── ocl-core v0.11.5
+      │           └── ocl v0.19.7 (*)
+      ├── utoipa-gen v5.5.0
+      │   └── utoipa v5.5.0
+      │       ├── salty v0.3.0 (*)
+      │       └── utoipa-swagger-ui v9.0.2 (*)
+      ├── yoke-derive v0.8.2 (*)
+      ├── zerofrom-derive v0.1.7 (*)
+      └── zerovec-derive v0.11.3
+          └── zerovec v0.11.6 (*)
+    ├ syn v3.0.3
+      ├── clap_derive v4.6.4
+      │   └── clap v4.6.6
+      │       └── salty v0.3.0
+      ├── displaydoc v0.2.7
+      │   ├── icu_collections v2.2.0
+      │   │   ├── icu_normalizer v2.2.0
+      │   │   │   └── idna_adapter v1.2.2
+      │   │   │       └── idna v1.1.0
+      │   │   │           └── url v2.5.8
+      │   │   │               └── salty v0.3.0 (*)
+      │   │   └── icu_properties v2.2.0
+      │   │       └── idna_adapter v1.2.2 (*)
+      │   ├── icu_locale_core v2.2.0
+      │   │   ├── icu_properties v2.2.0 (*)
+      │   │   └── icu_provider v2.2.0
+      │   │       ├── icu_normalizer v2.2.0 (*)
+      │   │       └── icu_properties v2.2.0 (*)
+      │   ├── icu_provider v2.2.0 (*)
+      │   ├── tinystr v0.8.3
+      │   │   └── icu_locale_core v2.2.0 (*)
+      │   └── zerotrie v0.2.4
+      │       ├── icu_properties v2.2.0 (*)
+      │       └── icu_provider v2.2.0 (*)
+      ├── foreign-types-macros v0.2.4
+      │   └── foreign-types v0.5.0
+      │       └── metal v0.33.0
+      │           └── salty v0.3.0 (*)
+      ├── serde_derive v1.0.229
+      │   └── serde v1.0.229
+      │       ├── figment v0.10.19
+      │       │   └── salty v0.3.0 (*)
+      │       ├── salty v0.3.0 (*)
+      │       ├── serde_spanned v0.6.9
+      │       │   ├── toml v0.8.23
+      │       │   │   └── figment v0.10.19 (*)
+      │       │   └── toml_edit v0.22.27
+      │       │       └── toml v0.8.23 (*)
+      │       ├── toml v0.8.23 (*)
+      │       ├── toml_datetime v0.6.11
+      │       │   ├── toml v0.8.23 (*)
+      │       │   └── toml_edit v0.22.27 (*)
+      │       ├── toml_edit v0.22.27 (*)
+      │       ├── utoipa v5.5.0
+      │       │   ├── salty v0.3.0 (*)
+      │       │   └── utoipa-swagger-ui v9.0.2
+      │       │       └── salty v0.3.0 (*)
+      │       └── utoipa-swagger-ui v9.0.2 (*)
+      └── tokio-macros v2.7.2
+          └── tokio v1.53.1
+              ├── axum v0.8.9
+              │   ├── salty v0.3.0 (*)
+              │   └── utoipa-swagger-ui v9.0.2 (*)
+              ├── hyper v1.11.0
+              │   ├── axum v0.8.9 (*)
+              │   └── hyper-util v0.1.20
+              │       └── axum v0.8.9 (*)
+              ├── hyper-util v0.1.20 (*)
+              ├── salty v0.3.0 (*)
+              └── tower v0.5.3
+                  └── axum v0.8.9 (*)
+
+warning[yanked]: detected yanked crate (try `cargo update -p chacha20`)
+   ┌─ /Users/bryan/code/create2-salt-miner/Cargo.lock:21:1
+   │
+21 │ chacha20 0.10.1 registry+https://github.com/rust-lang/crates.io-index
+   │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ yanked version
+   │
+   ├ chacha20 v0.10.1
+     └── rand v0.10.2
+         └── salty v0.3.0
+
+advisories ok, bans ok, licenses ok, sources ok

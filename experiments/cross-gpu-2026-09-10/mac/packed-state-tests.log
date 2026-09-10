@@ -1,0 +1,41 @@
+   Compiling salty v0.3.0 (/Users/bryan/code/create2-salt-miner/target/cross-gpu/source)
+    Finished `release` profile [optimized] target(s) in 18.69s
+warning: the following packages contain code that will be rejected by a future version of Rust: block v0.1.6
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 2`
+────────────
+ Nextest run ID ef3d6cfc-8d6c-4d08-82b0-0627817b65f2 with nextest profile: default
+    Starting 32 tests across 2 binaries
+        PASS [   2.130s] ( 1/32) salty::runtime native_timed_mining_qualifies_or_returns_fallback
+        PASS [   0.011s] ( 2/32) salty::runtime remote_request_keeps_limits_and_returns_fallback_with_exit_two
+        PASS [   0.007s] ( 3/32) salty::bin/salty display::tests::combinations_counts_address_byte_pairs
+        PASS [   0.006s] ( 4/32) salty::bin/salty display::tests::doubling_hashrate_halves_expected_eta
+        PASS [   0.007s] ( 5/32) salty::bin/salty display::tests::eta_is_memoryless_after_elapsed_time_without_hit
+        PASS [   0.007s] ( 6/32) salty::bin/salty display::tests::expected_attempts_for_realistic_width_known_value
+        PASS [   0.007s] ( 7/32) salty::bin/salty display::tests::expected_attempts_for_score_beyond_address_bytes_is_impossible
+        PASS [   0.007s] ( 8/32) salty::bin/salty display::tests::expected_attempts_for_score_one_uses_at_least_one_zero_byte
+        PASS [   0.007s] ( 9/32) salty::bin/salty display::tests::expected_attempts_for_score_zero_is_one
+        PASS [   0.007s] (10/32) salty::bin/salty display::tests::probability_for_small_width_uses_binomial_at_least_score
+        PASS [   0.007s] (11/32) salty::bin/salty display::tests::seven_zero_bytes_anywhere_is_much_easier_than_seven_leading_zero_bytes
+        PASS [   0.073s] (12/32) salty::bin/salty miner::metal::tests::metal_kernel_returns_a_cpu_verified_nonce
+        PASS [   0.042s] (13/32) salty::bin/salty miner::metal::tests::metal_scores_match_cpu_at_nonce_boundaries
+        PASS [   0.007s] (14/32) salty::bin/salty miner::tests::absent_minimum_adds_no_delay_but_requires_qualification
+        PASS [   0.007s] (15/32) salty::bin/salty miner::tests::maximum_stops_with_fallback_or_no_candidate_and_overrides_minimum
+        PASS [   0.007s] (16/32) salty::bin/salty miner::tests::mining_exit_status_requires_target
+        PASS [   0.007s] (17/32) salty::bin/salty miner::tests::stop_mode_owns_fallback_threshold
+        PASS [   0.006s] (18/32) salty::bin/salty miner::tests::stop_requires_target_and_minimum_before_maximum
+        PASS [   0.007s] (19/32) salty::bin/salty server::tests::api_schema_exposes_both_optional_limits
+        PASS [   0.007s] (20/32) salty::bin/salty server::tests::cache_separates_both_limits_and_stores_actual_maximum
+        PASS [   0.007s] (21/32) salty::bin/salty server::tests::limits_survive_serialization_normalization_and_queue_restart
+        PASS [   1.098s] (22/32) salty::bin/salty server::tests::native_queued_maximum_returns_fallback_and_measured_time
+        PASS [   0.007s] (23/32) salty::bin/salty server::tests::normalization_preserves_limit_validation_and_absent_limits
+        PASS [   0.007s] (24/32) salty::bin/salty server::tests::parse_http_response_returns_status_and_body
+        PASS [   0.007s] (25/32) salty::bin/salty server::tests::remote_mine_endpoint_appends_mine_to_base_url
+        PASS [   0.007s] (26/32) salty::bin/salty server::tests::remote_mine_endpoint_preserves_existing_base_path
+        PASS [   0.007s] (27/32) salty::bin/salty server::tests::remote_mine_endpoint_rejects_https
+        PASS [   0.007s] (28/32) salty::bin/salty server::tests::response_preserves_fallback_and_measured_runtime
+        PASS [   0.006s] (29/32) salty::bin/salty tests::bench_config_has_built_in_defaults
+        PASS [   0.007s] (30/32) salty::bin/salty tests::bench_config_honors_explicit_args
+        PASS [   0.008s] (31/32) salty::bin/salty tests::cli_limits_override_config_and_preserve_unspecified_limit
+        PASS [   0.007s] (32/32) salty::bin/salty tests::remote_fallback_and_empty_results_exit_with_two
+────────────
+     Summary [   3.543s] 32 tests run: 32 passed, 0 skipped

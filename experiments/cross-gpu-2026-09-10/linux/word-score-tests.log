@@ -1,0 +1,52 @@
+   Compiling salty v0.3.0 (/tmp/salty-benchmark-20260910-E6rlwI/source)
+    Finished `release` profile [optimized] target(s) in 31.94s
+     Running unittests src/main.rs (/tmp/salty-benchmark-20260910-E6rlwI/final-build/x86_64-unknown-linux-gnu/release/deps/salty-af7c80b2579cac93)
+
+running 29 tests
+test display::tests::combinations_counts_address_byte_pairs ... ok
+test display::tests::doubling_hashrate_halves_expected_eta ... ok
+test display::tests::eta_is_memoryless_after_elapsed_time_without_hit ... ok
+test display::tests::expected_attempts_for_realistic_width_known_value ... ok
+test display::tests::expected_attempts_for_score_beyond_address_bytes_is_impossible ... ok
+test display::tests::expected_attempts_for_score_one_uses_at_least_one_zero_byte ... ok
+test display::tests::expected_attempts_for_score_zero_is_one ... ok
+test display::tests::probability_for_small_width_uses_binomial_at_least_score ... ok
+test display::tests::seven_zero_bytes_anywhere_is_much_easier_than_seven_leading_zero_bytes ... ok
+test miner::tests::absent_minimum_adds_no_delay_but_requires_qualification ... ok
+test miner::tests::maximum_stops_with_fallback_or_no_candidate_and_overrides_minimum ... ok
+test miner::tests::mining_exit_status_requires_target ... ok
+test miner::tests::opencl_scores_match_cpu_at_nonce_boundaries ... ok
+test miner::tests::stop_mode_owns_fallback_threshold ... ok
+test miner::tests::stop_requires_target_and_minimum_before_maximum ... ok
+test server::tests::api_schema_exposes_both_optional_limits ... ok
+test server::tests::cache_separates_both_limits_and_stores_actual_maximum ... ok
+test server::tests::limits_survive_serialization_normalization_and_queue_restart ... ok
+test server::tests::native_queued_maximum_returns_fallback_and_measured_time ... ok
+test server::tests::normalization_preserves_limit_validation_and_absent_limits ... ok
+test server::tests::parse_http_response_returns_status_and_body ... ok
+test server::tests::remote_mine_endpoint_appends_mine_to_base_url ... ok
+test server::tests::remote_mine_endpoint_preserves_existing_base_path ... ok
+test server::tests::remote_mine_endpoint_rejects_https ... ok
+test server::tests::response_preserves_fallback_and_measured_runtime ... ok
+test tests::bench_config_has_built_in_defaults ... ok
+test tests::bench_config_honors_explicit_args ... ok
+test tests::cli_limits_override_config_and_preserve_unspecified_limit ... ok
+test tests::remote_fallback_and_empty_results_exit_with_two ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.79s
+
+     Running tests/runtime.rs (/tmp/salty-benchmark-20260910-E6rlwI/final-build/x86_64-unknown-linux-gnu/release/deps/runtime-db872429eb00c416)
+
+running 2 tests
+test native_timed_mining_qualifies_or_returns_fallback ... ok
+test remote_request_keeps_limits_and_returns_fallback_with_exit_two ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.54s
+
+     Running tests/scoring.rs (/tmp/salty-benchmark-20260910-E6rlwI/final-build/x86_64-unknown-linux-gnu/release/deps/scoring-248033aeb8f33d7c)
+
+running 1 test
+test native_zero_byte_scoring_matches_cpu_for_all_byte_values ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+

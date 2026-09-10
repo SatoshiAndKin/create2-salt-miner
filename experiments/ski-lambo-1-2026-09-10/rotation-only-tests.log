@@ -1,0 +1,15 @@
+   Compiling salty v0.3.0 (/tmp/salty-benchmark-20260910-E6rlwI/source)
+    Finished `release` profile [optimized] target(s) in 32.26s
+     Running unittests src/main.rs (/tmp/salty-benchmark-20260910-E6rlwI/final-build/x86_64-unknown-linux-gnu/release/deps/salty-af7c80b2579cac93)
+
+running 1 test
+test miner::tests::opencl_scores_match_cpu_at_nonce_boundaries ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 28 filtered out; finished in 1.90s
+
+     Running tests/runtime.rs (/tmp/salty-benchmark-20260910-E6rlwI/final-build/x86_64-unknown-linux-gnu/release/deps/runtime-db872429eb00c416)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+

@@ -1,0 +1,68 @@
+Thu Sep 10 12:34:45 UTC 2026
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+binary: rustc
+commit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea
+commit-date: 2026-08-18
+host: aarch64-apple-darwin
+release: 1.98.0
+LLVM version: 22.1.8
+cargo 1.98.0 (797e8a9bc 2026-08-05)
+cargo-pgo-pgo 0.3.0
+cargo-nextest 0.9.143 (60fa45f63 2026-08-04)
+release: 0.9.143
+commit-hash: 60fa45f638ffc3f35e74afa65737f45fcd32db2a
+commit-date: 2026-08-04
+host: aarch64-apple-darwin
+TRAIN_CALLER           := "0x0000000000000000000000000000000000000000"
+TRAIN_CODEHASH         := "0x64e604787cbf194841e7b68d7cd28786f6c9a0a3ab9f8b0a0e87cb4387ab0107"
+TRAIN_FACTORY          := "0x0000000000FFe8B47B3e2130213B802212439497"
+TRAIN_MIN_RUNTIME_SECS := "30"
+TRAIN_WORKSIZE         := "71303168"
+TRAIN_ZEROS            := "1"
+WINDOWS_RUSTFLAGS      := "-C target-cpu=x86-64"
+enable_bolt            := "0"
+target_directory       := "target"
+windows-target         := "x86_64-pc-windows-gnu"
+[package]
+  authors = [ "Akshat Mittal <hi@akshatmittal.com>" ]
+  edition = "2024"
+  license = "MIT OR Apache-2.0"
+  name = "salty"
+  rust-version = "1.90"
+  version = "0.3.0"
+
+[dependencies]
+  alloy-primitives = { version = "1.6.1", default-features = false, features = [ "rand", "std" ] }
+  axum = { version = "0.8.9", default-features = false, features = [ "http1", "json", "tokio" ] }
+  clap = { version = "4.6.6", default-features = false, features = [ "derive", "error-context", "help", "std", "usage" ] }
+  console = { version = "0.16.4", default-features = false, features = [ "std" ] }
+  eyre = "0.6.12"
+  figment = { version = "0.10.19", default-features = false, features = [ "toml" ] }
+  indicatif = { version = "0.18.6", default-features = false, features = [ "unicode-width" ] }
+  ocl = { version = "0.19.7", default-features = false, features = [ "opencl_version_1_1", "opencl_version_1_2" ] }
+  rand = { version = "0.10.2", default-features = false, features = [ "thread_rng" ] }
+  rusqlite = { version = "0.40.2", default-features = false, features = [ "bundled" ] }
+  serde = { version = "1.0.229", default-features = false, features = [ "derive", "std" ] }
+  serde_json = { version = "1.0.151", default-features = false, features = [ "std" ] }
+  tokio = { version = "1.53.1", default-features = false, features = [ "macros", "net", "rt-multi-thread" ] }
+  utoipa = { version = "5.5.0", default-features = false, features = [ "macros" ] }
+  utoipa-swagger-ui = { version = "9.0.2", default-features = false, features = [ "axum", "vendored" ] }
+  url = { version = "2.5.8", default-features = false, features = [ "std" ] }
+
+[features]
+  default = [  ]
+
+[profile.release]
+  opt-level = 3
+  lto = "fat"
+  strip = true
+  panic = "abort"
+  codegen-units = 1
+  debug = false
+  incremental = false
+
+[target.'cfg(target_os = "macos")'.dependencies]
+metal = { version = "0.33.0", default-features = false, features = [ "link" ] }
+objc = "0.2.7"
+[build]
+rustflags = ["-C", "target-cpu=native"]

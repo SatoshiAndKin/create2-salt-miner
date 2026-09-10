@@ -1,0 +1,54 @@
+Thu Sep 10 12:42:39 UTC 2026
+ProductName:		macOS
+ProductVersion:		26.2
+BuildVersion:		25C56
+Graphics/Displays:
+
+    Apple M4 Max:
+
+      Chipset Model: Apple M4 Max
+      Type: GPU
+      Bus: Built-In
+      Total Number of Cores: 32
+      Vendor: Apple (0x106b)
+      Metal Support: Metal 4
+      Displays:
+        Color LCD:
+          Display Type: Built-in Liquid Retina XDR Display
+          Resolution: 3024 x 1964 Retina
+          Main Display: Yes
+          Mirror: Off
+          Online: Yes
+          Automatically Adjust Brightness: Yes
+          Display Asleep: Yes
+          Connection Type: Internal
+
+Battery Power:
+ Sleep On Power Button 1
+ powermode            0
+ standby              1
+ ttyskeepawake        1
+ hibernatemode        3
+ powernap             1
+ hibernatefile        /var/vm/sleepimage
+ displaysleep         2
+ womp                 0
+ networkoversleep     0
+ sleep                1
+ lessbright           1
+ tcpkeepalive         1
+ disksleep            10
+AC Power:
+ Sleep On Power Button 1
+ powermode            0
+ standby              1
+ ttyskeepawake        1
+ hibernatemode        3
+ powernap             1
+ hibernatefile        /var/vm/sleepimage
+ displaysleep         10
+ womp                 1
+ networkoversleep     0
+ sleep                0
+ tcpkeepalive         1
+ disksleep            10
