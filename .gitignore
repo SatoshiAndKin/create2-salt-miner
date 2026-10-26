@@ -1,4 +1,5 @@
 /target
+/salty-cache.redb
 output.txt
 .cargo/*
 !.cargo/config.toml

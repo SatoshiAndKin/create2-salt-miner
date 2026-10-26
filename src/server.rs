@@ -1,9 +1,8 @@
 use std::{
-    collections::BTreeMap,
     io::{Read, Write},
     net::SocketAddr,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -16,7 +15,7 @@ use axum::{
     routing::{get, post},
 };
 use eyre::{Context, OptionExt, Result, eyre};
-use rusqlite::{Connection, OptionalExtension, params};
+use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use serde::{Deserialize, Serialize};
 use tokio::{net::TcpListener, sync::Notify};
 use url::{Host, Url};
@@ -37,8 +36,38 @@ pub struct ServerConfig {
 
 #[derive(Debug, Clone)]
 struct ServerState {
-    cache: Arc<Mutex<Connection>>,
+    cache: Arc<Database>,
     jobs_changed: Arc<Notify>,
+}
+
+const MINE_CACHE: TableDefinition<&str, &[u8]> = TableDefinition::new("mine_cache");
+const MINE_JOBS: TableDefinition<&str, &[u8]> = TableDefinition::new("mine_jobs");
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+enum JobStatus {
+    Queued,
+    Running,
+    Succeeded,
+    Failed(String),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct StoredJob {
+    request: NormalizedMineRequest,
+    status: JobStatus,
+    created_at: u64,
+}
+
+impl ServerState {
+    async fn with_cache<T: Send + 'static>(
+        &self,
+        operation: impl FnOnce(&Database) -> Result<T> + Send + 'static,
+    ) -> Result<T> {
+        let cache = self.cache.clone();
+        tokio::task::spawn_blocking(move || operation(&cache))
+            .await
+            .wrap_err("database task failed to join")?
+    }
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -97,13 +126,11 @@ struct ErrorResponse {
 struct ApiDoc;
 
 pub async fn start_server(config: ServerConfig) -> Result<()> {
-    let mut connection = Connection::open(&config.cache_path)
-        .wrap_err_with(|| format!("failed to open cache at {}", config.cache_path.display()))?;
-    init_cache(&mut connection).wrap_err("failed to initialize cache")?;
-    requeue_running_jobs(&connection).wrap_err("failed to requeue interrupted jobs")?;
-
+    let cache = tokio::task::spawn_blocking(move || open_cache(&config.cache_path))
+        .await
+        .wrap_err("database startup task failed to join")??;
     let state = ServerState {
-        cache: Arc::new(Mutex::new(connection)),
+        cache: Arc::new(cache),
         jobs_changed: Arc::new(Notify::new()),
     };
     tokio::spawn(mining_worker(state.clone()));
@@ -313,15 +340,24 @@ async fn mine_inner(
     let request_key = serde_json::to_string(&normalized)
         .map_err(|error| ServerError::internal(eyre!("failed to serialize request: {error}")))?;
 
-    if let Some(mut response) =
-        get_cached_response(&state, &request_key).map_err(ServerError::internal)?
-    {
+    let key = request_key.clone();
+    let jobs_changed = state.jobs_changed.clone();
+    let cached = state
+        .with_cache(move |cache| {
+            if let Some(response) = get_cached_response(cache, &key)? {
+                return Ok(Some(response));
+            }
+            enqueue_job(cache, &key, &normalized)?;
+            // The blocking task continues if the client disconnects during the write.
+            jobs_changed.notify_one();
+            Ok(None)
+        })
+        .await
+        .map_err(ServerError::internal)?;
+    if let Some(mut response) = cached {
         response.cache_hit = true;
         return Ok(response);
     }
-
-    enqueue_job(&state, &request_key, &normalized).map_err(ServerError::internal)?;
-    state.jobs_changed.notify_one();
 
     wait_for_mining_response(&state, &request_key).await
 }
@@ -340,15 +376,19 @@ async fn mining_worker(state: ServerState) {
 }
 
 async fn run_next_job(state: &ServerState) -> Result<bool> {
-    let Some((request_key, normalized)) = claim_next_job(state)? else {
+    let Some((request_key, normalized)) = state.with_cache(claim_next_job).await? else {
         return Ok(false);
     };
 
     let result = run_claimed_job(state, &request_key, &normalized).await;
-    if let Err(error) = &result
-        && let Err(mark_error) = mark_job_failed(state, &request_key, &error.to_string())
-    {
-        eprintln!("failed to mark mining job failed: {mark_error:?}");
+    if let Err(error) = &result {
+        let message = error.to_string();
+        if let Err(mark_error) = state
+            .with_cache(move |cache| mark_job_failed(cache, &request_key, message))
+            .await
+        {
+            eprintln!("failed to mark mining job failed: {mark_error:?}");
+        }
     }
     state.jobs_changed.notify_waiters();
     result.map(|()| true)
@@ -365,14 +405,13 @@ async fn run_claimed_job(
         .await
         .wrap_err("mining task failed to join")?;
 
-    match outcome {
-        Ok(outcome) => {
-            let response = mining_response(outcome);
-            insert_cached_response(state, request_key, normalized, &response)?;
-            mark_job_succeeded(state, request_key)?;
-        }
-        Err(error) => mark_job_failed(state, request_key, &error.to_string())?,
-    }
+    let request_key = request_key.to_owned();
+    state
+        .with_cache(move |cache| match outcome {
+            Ok(outcome) => complete_job(cache, &request_key, &mining_response(outcome)),
+            Err(error) => mark_job_failed(cache, &request_key, error.to_string()),
+        })
+        .await?;
 
     Ok(())
 }
@@ -384,14 +423,21 @@ async fn wait_for_mining_response(
     loop {
         let changed = state.jobs_changed.notified();
 
-        if let Some(mut response) =
-            get_cached_response(state, request_key).map_err(ServerError::internal)?
-        {
+        let key = request_key.to_owned();
+        let (response, error) = state
+            .with_cache(move |cache| {
+                Ok((
+                    get_cached_response(cache, &key)?,
+                    get_job_error(cache, &key)?,
+                ))
+            })
+            .await
+            .map_err(ServerError::internal)?;
+        if let Some(mut response) = response {
             response.cache_hit = true;
             return Ok(response);
         }
-
-        if let Some(error) = get_job_error(state, request_key).map_err(ServerError::internal)? {
+        if let Some(error) = error {
             return Err(ServerError::internal(eyre!(error)));
         }
 
@@ -459,369 +505,160 @@ fn normalize_request(request: MineRequest) -> Result<NormalizedMineRequest> {
     })
 }
 
-fn init_cache(connection: &mut Connection) -> Result<()> {
-    let transaction = connection.transaction()?;
-    let connection = &transaction;
-    connection.execute(
-        "CREATE TABLE IF NOT EXISTS mine_cache (
-            request_key TEXT PRIMARY KEY,
-            factory TEXT NOT NULL,
-            caller TEXT NOT NULL,
-            codehash TEXT NOT NULL,
-            worksize INTEGER NOT NULL,
-            zeros INTEGER NOT NULL,
-            max_runtime_secs INTEGER,
-            response_json TEXT NOT NULL,
-            created_at INTEGER NOT NULL
-        )",
-        [],
-    )?;
-    connection.execute(
-        "CREATE TABLE IF NOT EXISTS mine_jobs (
-            request_key TEXT PRIMARY KEY,
-            request_json TEXT NOT NULL,
-            status TEXT NOT NULL,
-            error TEXT,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL
-        )",
-        [],
-    )?;
-    migrate_request_keys(connection)?;
-    transaction.commit()?;
-    Ok(())
+fn open_cache(path: &std::path::Path) -> Result<Database> {
+    let cache = Database::create(path)
+        .wrap_err_with(|| format!("failed to open redb database at {}", path.display()))?;
+    init_cache(&cache)?;
+    Ok(cache)
 }
 
-// Both older layouts had one optional limit. Only unlimited requests retained
-// the same mining behavior across every version of those layouts.
-fn migrated_request_key(key: &str) -> Result<Option<String>> {
-    let Ok(serde_json::Value::Object(fields)) = serde_json::from_str(key) else {
-        return Ok(None);
-    };
-    if fields.len() != 6
-        || !["factory", "caller", "codehash", "worksize", "zeros"]
-            .iter()
-            .all(|field| fields.contains_key(*field))
-        || !["min_runtime_secs", "max_runtime_secs"]
-            .iter()
-            .any(|field| fields.get(*field).is_some_and(serde_json::Value::is_null))
+fn init_cache(cache: &Database) -> Result<()> {
+    let transaction = cache.begin_write()?;
+    transaction.open_table(MINE_CACHE)?;
     {
-        return Ok(None);
-    }
-    let request: NormalizedMineRequest =
-        serde_json::from_str(key).wrap_err("invalid stored unlimited request key")?;
-    Ok(Some(serde_json::to_string(&request)?))
-}
-
-fn migrate_request_keys(connection: &Connection) -> Result<()> {
-    let mut groups: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    let mut statement = connection
-        .prepare("SELECT request_key FROM mine_cache UNION SELECT request_key FROM mine_jobs")?;
-    for key in statement.query_map([], |row| row.get::<_, String>(0))? {
-        let key = key?;
-        if let Some(current) = migrated_request_key(&key)? {
-            groups.entry(current).or_default().push(key);
-        }
-    }
-    drop(statement);
-    for (current, mut keys) in groups {
-        // Visit the current key first so it wins ties and existing cache results
-        // always take precedence over results from an older layout.
-        keys.insert(0, current.clone());
-        migrate_request_group(connection, &current, &keys)?;
-    }
-    Ok(())
-}
-
-fn migrate_request_group(connection: &Connection, current: &str, keys: &[String]) -> Result<()> {
-    struct StoredJob {
-        key: String,
-        request_json: String,
-        status: String,
-        error: Option<String>,
-        created_at: i64,
-        updated_at: i64,
-    }
-
-    let mut cached: Option<(&str, i64)> = None;
-    let mut jobs = Vec::new();
-    for key in keys {
-        let created_at: Option<i64> = connection
-            .query_row(
-                "SELECT created_at FROM mine_cache WHERE request_key = ?1",
-                [key],
-                |row| row.get(0),
-            )
-            .optional()?;
-        if let Some(created_at) = created_at
-            && cached
-                .is_none_or(|(saved_key, saved_at)| saved_key != current && created_at > saved_at)
-        {
-            cached = Some((key, created_at));
-        }
-        let job = connection
-            .query_row(
-                "SELECT request_json, status, error, created_at, updated_at
-                 FROM mine_jobs WHERE request_key = ?1",
-                [key],
-                |row| {
-                    Ok(StoredJob {
-                        key: key.clone(),
-                        request_json: row.get(0)?,
-                        status: row.get(1)?,
-                        error: row.get(2)?,
-                        created_at: row.get(3)?,
-                        updated_at: row.get(4)?,
-                    })
-                },
-            )
-            .optional()?;
-        if let Some(job) = job {
-            let request: NormalizedMineRequest = serde_json::from_str(&job.request_json)
-                .wrap_err("invalid job payload during request key migration")?;
-            if serde_json::to_string(&request)? != current {
-                return Err(eyre!("job payload does not match its stored request key"));
+        let mut jobs = transaction.open_table(MINE_JOBS)?;
+        let mut interrupted = Vec::new();
+        for entry in jobs.iter()? {
+            let (key, value) = entry?;
+            let mut job: StoredJob = serde_json::from_slice(value.value())?;
+            if job.status == JobStatus::Running {
+                job.status = JobStatus::Queued;
+                interrupted.push((key.value().to_owned(), serde_json::to_vec(&job)?));
             }
-            jobs.push(job);
+        }
+        for (key, job) in interrupted {
+            jobs.insert(key.as_str(), job.as_slice())?;
         }
     }
-
-    if let Some((saved_key, _)) = cached {
-        for key in keys.iter().filter(|key| key.as_str() != saved_key) {
-            connection.execute("DELETE FROM mine_cache WHERE request_key = ?1", [key])?;
-        }
-        connection.execute(
-            "UPDATE mine_cache SET request_key = ?1 WHERE request_key = ?2",
-            params![current, saved_key],
-        )?;
-    }
-
-    if let Some(selected) = jobs
-        .iter()
-        .max_by_key(|job| (job.key == current, job.updated_at))
-    {
-        let created_at = jobs.iter().map(|job| job.created_at).min().unwrap();
-        let pending = jobs
-            .iter()
-            .any(|job| matches!(job.status.as_str(), "queued" | "running"));
-        let status = if cached.is_some() {
-            "succeeded"
-        } else if pending {
-            "queued"
-        } else {
-            &selected.status
-        };
-        let error = if cached.is_some() || pending {
-            None
-        } else {
-            selected.error.as_deref()
-        };
-        let updated_at = if status != selected.status || error != selected.error.as_deref() {
-            unix_timestamp()
-        } else {
-            selected.updated_at
-        };
-        for key in keys.iter().filter(|key| **key != selected.key) {
-            connection.execute("DELETE FROM mine_jobs WHERE request_key = ?1", [key])?;
-        }
-        connection.execute(
-            "UPDATE mine_jobs SET request_key = ?1, request_json = ?1, status = ?2,
-             error = ?3, created_at = ?4, updated_at = ?5 WHERE request_key = ?6",
-            params![current, status, error, created_at, updated_at, selected.key],
-        )?;
-    }
+    transaction
+        .commit()
+        .wrap_err("failed to initialize database")?;
     Ok(())
 }
 
-fn requeue_running_jobs(connection: &Connection) -> rusqlite::Result<()> {
-    let now = unix_timestamp();
-    connection.execute(
-        "UPDATE mine_jobs SET status = 'queued', error = NULL, updated_at = ?1 WHERE status = 'running'",
-        [now],
-    )?;
-    Ok(())
-}
-
-fn get_cached_response(state: &ServerState, request_key: &str) -> Result<Option<MineResponse>> {
-    let cache = state
-        .cache
-        .lock()
-        .map_err(|_| eyre!("cache mutex poisoned"))?;
-    let response_json: Option<String> = cache
-        .query_row(
-            "SELECT response_json FROM mine_cache WHERE request_key = ?1",
-            [request_key],
-            |row| row.get(0),
-        )
-        .optional()
-        .wrap_err("failed to read cache")?;
-
-    response_json
-        .map(|json| serde_json::from_str(&json).wrap_err("failed to deserialize cached response"))
+fn get_cached_response(cache: &Database, request_key: &str) -> Result<Option<MineResponse>> {
+    let transaction = cache.begin_read()?;
+    let results = transaction.open_table(MINE_CACHE)?;
+    results
+        .get(request_key)?
+        .map(|value| {
+            serde_json::from_slice(value.value()).wrap_err("failed to deserialize cached response")
+        })
         .transpose()
 }
 
-fn insert_cached_response(
-    state: &ServerState,
-    request_key: &str,
-    request: &NormalizedMineRequest,
-    response: &MineResponse,
-) -> Result<()> {
-    let response_json =
-        serde_json::to_string(response).wrap_err("failed to serialize cache response")?;
-    let created_at = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .wrap_err("system clock is before Unix epoch")?
-        .as_secs();
-    let cache = state
-        .cache
-        .lock()
-        .map_err(|_| eyre!("cache mutex poisoned"))?;
-    cache
-        .execute(
-            "INSERT OR REPLACE INTO mine_cache (
-                request_key,
-                factory,
-                caller,
-                codehash,
-                worksize,
-                zeros,
-                max_runtime_secs,
-                response_json,
-                created_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-            params![
-                request_key,
-                request.factory,
-                request.caller,
-                request.codehash,
-                request.worksize,
-                request.zeros as i64,
-                request.max_runtime_secs.map(|secs| secs as i64),
-                response_json,
-                created_at as i64
-            ],
-        )
-        .wrap_err("failed to write cache")?;
-    Ok(())
-}
-
-fn enqueue_job(
-    state: &ServerState,
-    request_key: &str,
-    request: &NormalizedMineRequest,
-) -> Result<()> {
-    let request_json =
-        serde_json::to_string(request).wrap_err("failed to serialize job request")?;
-    let now = unix_timestamp();
-    let cache = state
-        .cache
-        .lock()
-        .map_err(|_| eyre!("cache mutex poisoned"))?;
-    cache
-        .execute(
-            "INSERT INTO mine_jobs (
-                request_key,
-                request_json,
-                status,
-                error,
-                created_at,
-                updated_at
-            ) VALUES (?1, ?2, 'queued', NULL, ?3, ?3)
-            ON CONFLICT(request_key) DO UPDATE SET
-                status = CASE WHEN mine_jobs.status = 'failed' THEN 'queued' ELSE mine_jobs.status END,
-                error = CASE WHEN mine_jobs.status = 'failed' THEN NULL ELSE mine_jobs.error END,
-                updated_at = CASE WHEN mine_jobs.status = 'failed' THEN excluded.updated_at ELSE mine_jobs.updated_at END",
-            params![request_key, request_json, now],
-        )
+fn enqueue_job(cache: &Database, request_key: &str, request: &NormalizedMineRequest) -> Result<()> {
+    let transaction = cache.begin_write()?;
+    {
+        let mut jobs = transaction.open_table(MINE_JOBS)?;
+        let stored = jobs
+            .get(request_key)?
+            .map(|value| serde_json::from_slice::<StoredJob>(value.value()))
+            .transpose()?;
+        let job = match stored {
+            Some(mut job) if matches!(job.status, JobStatus::Failed(_)) => {
+                job.status = JobStatus::Queued;
+                job
+            }
+            Some(_) => return Ok(()),
+            None => StoredJob {
+                request: request.clone(),
+                status: JobStatus::Queued,
+                created_at: unix_timestamp(),
+            },
+        };
+        jobs.insert(request_key, serde_json::to_vec(&job)?.as_slice())?;
+    }
+    transaction
+        .commit()
         .wrap_err("failed to enqueue mining job")?;
     Ok(())
 }
 
-fn claim_next_job(state: &ServerState) -> Result<Option<(String, NormalizedMineRequest)>> {
-    let now = unix_timestamp();
-    let cache = state
-        .cache
-        .lock()
-        .map_err(|_| eyre!("cache mutex poisoned"))?;
-    let job: Option<(String, String)> = cache
-        .query_row(
-            "SELECT request_key, request_json
-             FROM mine_jobs
-             WHERE status = 'queued'
-             ORDER BY created_at, request_key
-             LIMIT 1",
-            [],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
-        .optional()
-        .wrap_err("failed to read queued job")?;
-
-    let Some((request_key, request_json)) = job else {
-        return Ok(None);
-    };
-
-    cache
-        .execute(
-            "UPDATE mine_jobs SET status = 'running', error = NULL, updated_at = ?1 WHERE request_key = ?2",
-            params![now, request_key],
-        )
-        .wrap_err("failed to mark mining job running")?;
-    drop(cache);
-
-    let request = serde_json::from_str(&request_json).wrap_err("failed to deserialize job")?;
-    Ok(Some((request_key, request)))
+fn claim_next_job(cache: &Database) -> Result<Option<(String, NormalizedMineRequest)>> {
+    let transaction = cache.begin_write()?;
+    let mut next: Option<(String, StoredJob)> = None;
+    {
+        let mut jobs = transaction.open_table(MINE_JOBS)?;
+        for entry in jobs.iter()? {
+            let (key, value) = entry?;
+            let job: StoredJob = serde_json::from_slice(value.value())?;
+            if job.status == JobStatus::Queued
+                && next.as_ref().is_none_or(|(saved_key, saved_job)| {
+                    (job.created_at, key.value()) < (saved_job.created_at, saved_key.as_str())
+                })
+            {
+                next = Some((key.value().to_owned(), job));
+            }
+        }
+        let Some((key, job)) = next.as_mut() else {
+            return Ok(None);
+        };
+        job.status = JobStatus::Running;
+        jobs.insert(key.as_str(), serde_json::to_vec(job)?.as_slice())?;
+    }
+    transaction
+        .commit()
+        .wrap_err("failed to claim mining job")?;
+    Ok(next.map(|(key, job)| (key, job.request)))
 }
 
-fn mark_job_succeeded(state: &ServerState, request_key: &str) -> Result<()> {
-    let now = unix_timestamp();
-    let cache = state
-        .cache
-        .lock()
-        .map_err(|_| eyre!("cache mutex poisoned"))?;
-    cache
-        .execute(
-            "UPDATE mine_jobs SET status = 'succeeded', error = NULL, updated_at = ?1 WHERE request_key = ?2",
-            params![now, request_key],
-        )
-        .wrap_err("failed to mark mining job succeeded")?;
+fn complete_job(cache: &Database, request_key: &str, response: &MineResponse) -> Result<()> {
+    let transaction = cache.begin_write()?;
+    {
+        let mut jobs = transaction.open_table(MINE_JOBS)?;
+        let mut job: StoredJob = serde_json::from_slice(
+            jobs.get(request_key)?
+                .ok_or_eyre("completed mining job is missing")?
+                .value(),
+        )?;
+        job.status = JobStatus::Succeeded;
+        let mut results = transaction.open_table(MINE_CACHE)?;
+        results.insert(request_key, serde_json::to_vec(response)?.as_slice())?;
+        jobs.insert(request_key, serde_json::to_vec(&job)?.as_slice())?;
+    }
+    // redb's default Immediate durability persists both changes before returning.
+    transaction
+        .commit()
+        .wrap_err("failed to complete mining job")?;
     Ok(())
 }
 
-fn mark_job_failed(state: &ServerState, request_key: &str, error: &str) -> Result<()> {
-    let now = unix_timestamp();
-    let cache = state
-        .cache
-        .lock()
-        .map_err(|_| eyre!("cache mutex poisoned"))?;
-    cache
-        .execute(
-            "UPDATE mine_jobs SET status = 'failed', error = ?1, updated_at = ?2 WHERE request_key = ?3",
-            params![error, now, request_key],
-        )
+fn mark_job_failed(cache: &Database, request_key: &str, error: String) -> Result<()> {
+    let transaction = cache.begin_write()?;
+    {
+        let mut jobs = transaction.open_table(MINE_JOBS)?;
+        let mut job: StoredJob = serde_json::from_slice(
+            jobs.get(request_key)?
+                .ok_or_eyre("failed mining job is missing")?
+                .value(),
+        )?;
+        job.status = JobStatus::Failed(error);
+        jobs.insert(request_key, serde_json::to_vec(&job)?.as_slice())?;
+    }
+    transaction
+        .commit()
         .wrap_err("failed to mark mining job failed")?;
     Ok(())
 }
 
-fn get_job_error(state: &ServerState, request_key: &str) -> Result<Option<String>> {
-    let cache = state
-        .cache
-        .lock()
-        .map_err(|_| eyre!("cache mutex poisoned"))?;
-    cache
-        .query_row(
-            "SELECT error FROM mine_jobs WHERE request_key = ?1 AND status = 'failed'",
-            [request_key],
-            |row| row.get(0),
-        )
-        .optional()
-        .wrap_err("failed to read job status")
+fn get_job_error(cache: &Database, request_key: &str) -> Result<Option<String>> {
+    let transaction = cache.begin_read()?;
+    let jobs = transaction.open_table(MINE_JOBS)?;
+    let job = jobs
+        .get(request_key)?
+        .map(|value| serde_json::from_slice::<StoredJob>(value.value()))
+        .transpose()?;
+    Ok(job.and_then(|job| match job.status {
+        JobStatus::Failed(error) => Some(error),
+        _ => None,
+    }))
 }
 
-fn unix_timestamp() -> i64 {
+fn unix_timestamp() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map_or(0, |duration| duration.as_secs() as i64)
+        .map_or(0, |duration| duration.as_secs())
 }
 
 #[cfg(test)]
@@ -841,306 +678,250 @@ mod tests {
     }
 
     fn state() -> ServerState {
-        let mut connection = Connection::open_in_memory().unwrap();
-        init_cache(&mut connection).unwrap();
+        let cache = Database::builder()
+            .create_with_backend(redb::backends::InMemoryBackend::new())
+            .unwrap();
+        init_cache(&cache).unwrap();
         ServerState {
-            cache: Arc::new(Mutex::new(connection)),
+            cache: Arc::new(cache),
             jobs_changed: Arc::new(Notify::new()),
         }
     }
 
-    fn unlimited_keys() -> Result<(String, String, String)> {
-        let mut input = request();
-        input.min_runtime_secs = None;
-        input.max_runtime_secs = None;
-        let key = serde_json::to_string(&normalize_request(input)?)?;
-        Ok((
-            key.replace(",\"max_runtime_secs\":null", ""),
-            key.replace(",\"min_runtime_secs\":null", ""),
-            key,
-        ))
+    fn stored_job(cache: &Database, key: &str) -> Result<StoredJob> {
+        let transaction = cache.begin_read()?;
+        let jobs = transaction.open_table(MINE_JOBS)?;
+        Ok(serde_json::from_slice(jobs.get(key)?.unwrap().value())?)
     }
 
-    fn seed_cache(connection: &Connection, key: &str, created_at: i64) -> Result<()> {
-        let request: NormalizedMineRequest = serde_json::from_str(key)?;
-        let response = MineResponse {
-            cache_hit: false,
-            found: true,
-            salt: Some(format!("0x{}", "44".repeat(32))),
-            address: Some(format!("0x{}", "55".repeat(20))),
-            score: Some(6),
-            runtime_ms: created_at as u128,
+    fn seed_job(
+        cache: &Database,
+        request: &NormalizedMineRequest,
+        status: JobStatus,
+        created_at: u64,
+    ) -> Result<String> {
+        let key = serde_json::to_string(request)?;
+        let job = StoredJob {
+            request: request.clone(),
+            status,
+            created_at,
         };
-        connection.execute(
-            "INSERT INTO mine_cache VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7, ?8)",
-            params![
-                key,
-                request.factory,
-                request.caller,
-                request.codehash,
-                request.worksize,
-                request.zeros as i64,
-                serde_json::to_string(&response)?,
-                created_at
-            ],
-        )?;
+        let transaction = cache.begin_write()?;
+        transaction
+            .open_table(MINE_JOBS)?
+            .insert(key.as_str(), serde_json::to_vec(&job)?.as_slice())?;
+        transaction.commit()?;
+        Ok(key)
+    }
+
+    #[test]
+    fn queue_orders_by_creation_time_then_request_key() -> Result<()> {
+        let state = state();
+        let mut input = normalize_request(request())?;
+        let mut expected = Vec::new();
+        for (zeros, timestamp) in [(9, 20), (8, 10), (7, 10)] {
+            input.zeros = zeros;
+            let key = seed_job(&state.cache, &input, JobStatus::Queued, timestamp)?;
+            expected.push((timestamp, key));
+        }
+        expected.sort();
+        for (_, key) in expected {
+            assert_eq!(claim_next_job(&state.cache)?.unwrap().0, key);
+        }
+        assert!(claim_next_job(&state.cache)?.is_none());
         Ok(())
     }
 
-    fn seed_job(connection: &Connection, key: &str, status: &str, timestamp: i64) -> Result<()> {
-        connection.execute(
-            "INSERT INTO mine_jobs VALUES (?1, ?1, ?2, ?3, ?4, ?4)",
-            params![
-                key,
-                status,
-                (status == "failed").then_some("device failed"),
-                timestamp
-            ],
-        )?;
+    #[test]
+    fn concurrent_requests_enqueue_and_claim_one_job() -> Result<()> {
+        let state = state();
+        let request = normalize_request(request())?;
+        let key = serde_json::to_string(&request)?;
+        std::thread::scope(|scope| -> Result<()> {
+            let workers: Vec<_> = (0..8)
+                .map(|_| scope.spawn(|| enqueue_job(&state.cache, &key, &request)))
+                .collect();
+            for worker in workers {
+                worker.join().unwrap()?;
+            }
+            let workers: Vec<_> = (0..8)
+                .map(|_| scope.spawn(|| claim_next_job(&state.cache)))
+                .collect();
+            let mut claimed = Vec::new();
+            for worker in workers {
+                if let Some(job) = worker.join().unwrap()? {
+                    claimed.push(job.0);
+                }
+            }
+            assert_eq!(claimed, vec![key.clone()]);
+            Ok(())
+        })?;
+        enqueue_job(&state.cache, &key, &request)?;
+        assert!(claim_next_job(&state.cache)?.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn failed_jobs_retry_without_an_old_error_or_changed_queue_order() -> Result<()> {
+        let state = state();
+        let request = normalize_request(request())?;
+        let key = seed_job(&state.cache, &request, JobStatus::Queued, 10)?;
+        claim_next_job(&state.cache)?.unwrap();
+        mark_job_failed(&state.cache, &key, "device failed".to_owned())?;
+        assert_eq!(
+            get_job_error(&state.cache, &key)?.as_deref(),
+            Some("device failed")
+        );
+        assert!(claim_next_job(&state.cache)?.is_none());
+        enqueue_job(&state.cache, &key, &request)?;
+        assert!(get_job_error(&state.cache, &key)?.is_none());
+        assert_eq!(stored_job(&state.cache, &key)?.created_at, 10);
+        assert_eq!(claim_next_job(&state.cache)?.unwrap().0, key);
+        assert!(claim_next_job(&state.cache)?.is_none());
         Ok(())
     }
 
     #[tokio::test]
-    async fn stored_unlimited_cache_is_reused_after_startup() -> Result<()> {
-        let (old_minimum, old_maximum, current) = unlimited_keys()?;
-        for old in [old_minimum, old_maximum] {
-            let path = std::env::temp_dir().join(format!(
-                "salty-cache-migration-{}-{}.db",
-                std::process::id(),
-                SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
-            ));
-            let mut connection = Connection::open(&path)?;
-            init_cache(&mut connection)?;
-            seed_cache(&connection, &old, 123)?;
-            seed_job(&connection, &old, "running", 100)?;
-            drop(connection);
-            let mut connection = Connection::open(&path)?;
-            init_cache(&mut connection)?;
-            let state = ServerState {
-                cache: Arc::new(Mutex::new(connection)),
-                jobs_changed: Arc::new(Notify::new()),
-            };
-            let cached = get_cached_response(&state, &current)?.expect("migrated cache hit");
-            assert_eq!(cached.runtime_ms, 123);
-            let mut input = request();
-            input.min_runtime_secs = None;
-            input.max_runtime_secs = None;
-            let response = mine_inner(state.clone(), input)
-                .await
-                .map_err(|e| eyre!(e.message))?;
-            assert!(response.cache_hit);
-            assert_eq!(response.salt, cached.salt);
-            assert_eq!(response.address, cached.address);
-            assert_eq!(response.score, cached.score);
-            assert_eq!(response.runtime_ms, cached.runtime_ms);
-            assert!(get_cached_response(&state, &old)?.is_none());
-            assert!(claim_next_job(&state)?.is_none());
-            drop(state);
-            std::fs::remove_file(path)?;
+    async fn client_disconnect_keeps_the_job_and_completed_results_are_reused() -> Result<()> {
+        let state = state();
+        let input = request();
+        let key = serde_json::to_string(&normalize_request(input.clone())?)?;
+        let enqueued = state.jobs_changed.notified();
+        let client = tokio::spawn(mine_inner(state.clone(), input.clone()));
+        enqueued.await;
+        client.abort();
+        assert!(client.await.unwrap_err().is_cancelled());
+        assert_eq!(claim_next_job(&state.cache)?.unwrap().0, key);
+        let response = mining_response(crate::miner::MiningRun {
+            outcome: Some(crate::miner::MiningOutcome {
+                salt: [0x44; 32],
+                address: alloy_primitives::Address::from([0x55; 20]),
+                score: 6,
+            }),
+            runtime: std::time::Duration::from_millis(20_123),
+        });
+        complete_job(&state.cache, &key, &response)?;
+        let cached = mine_inner(state.clone(), input)
+            .await
+            .map_err(|error| eyre!(error.message))?;
+        assert!(cached.cache_hit);
+        assert_eq!(cached.salt, response.salt);
+        assert_eq!(cached.address, response.address);
+        assert_eq!(cached.score, response.score);
+        assert_eq!(cached.runtime_ms, response.runtime_ms);
+        assert_eq!(stored_job(&state.cache, &key)?.status, JobStatus::Succeeded);
+        assert!(claim_next_job(&state.cache)?.is_none());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn disconnect_during_enqueue_still_notifies_the_worker() -> Result<()> {
+        use std::{future::Future, task::Poll};
+
+        let state = state();
+        let key = serde_json::to_string(&normalize_request(request())?)?;
+        let enqueued = state.jobs_changed.notified();
+        let write_lock = state.cache.begin_write()?;
+        {
+            let mut client = Box::pin(mine_inner(state.clone(), request()));
+            // Start the blocking database task, then disconnect before it can commit.
+            std::future::poll_fn(|context| {
+                assert!(client.as_mut().poll(context).is_pending());
+                Poll::Ready(())
+            })
+            .await;
         }
+        drop(write_lock);
+        enqueued.await;
+        assert_eq!(claim_next_job(&state.cache)?.unwrap().0, key);
         Ok(())
     }
 
     #[test]
-    fn stored_unlimited_jobs_resume_once_after_startup() -> Result<()> {
-        let (old_minimum, old_maximum, current) = unlimited_keys()?;
-        let mut connection = Connection::open_in_memory()?;
-        init_cache(&mut connection)?;
-        seed_job(&connection, &old_minimum, "running", 10)?;
-        seed_job(&connection, &old_maximum, "queued", 20)?;
-        seed_job(&connection, &current, "failed", 30)?;
-        init_cache(&mut connection)?;
-        init_cache(&mut connection)?;
-        requeue_running_jobs(&connection)?;
-        let state = ServerState {
-            cache: Arc::new(Mutex::new(connection)),
-            jobs_changed: Arc::new(Notify::new()),
-        };
-        let request: NormalizedMineRequest = serde_json::from_str(&current)?;
-        enqueue_job(&state, &current, &request)?;
-        let (key, claimed) = claim_next_job(&state)?.unwrap();
-        assert_eq!(key, current);
-        assert_eq!(claimed.stop_mode(), MiningStop::FirstMatch);
-        assert!(claim_next_job(&state)?.is_none());
-        let stored: (String, i64, Option<String>) = state.cache.lock().unwrap().query_row(
-            "SELECT request_json, created_at, error FROM mine_jobs",
-            [],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-        )?;
-        assert_eq!(stored, (current, 10, None));
-        Ok(())
-    }
-
-    fn cache_snapshot(connection: &Connection) -> Result<Vec<Vec<rusqlite::types::Value>>> {
-        let mut snapshot = Vec::new();
-        for table in ["mine_cache", "mine_jobs"] {
-            let mut statement =
-                connection.prepare(&format!("SELECT * FROM {table} ORDER BY request_key"))?;
-            let columns = statement.column_count();
-            let rows = statement.query_map([], |row| {
-                (0..columns)
-                    .map(|column| row.get(column))
-                    .collect::<rusqlite::Result<Vec<_>>>()
-            })?;
-            snapshot.extend(rows.collect::<rusqlite::Result<Vec<_>>>()?);
-        }
-        Ok(snapshot)
-    }
-
-    #[test]
-    fn stored_cache_collisions_preserve_results_and_finish_jobs() -> Result<()> {
-        let (old_minimum, old_maximum, current) = unlimited_keys()?;
-        for existing_current in [false, true] {
-            let mut connection = Connection::open_in_memory()?;
-            init_cache(&mut connection)?;
-            seed_cache(&connection, &old_minimum, 20)?;
-            seed_cache(&connection, &old_maximum, 30)?;
-            if existing_current {
-                seed_cache(&connection, &current, 10)?;
-            }
-            seed_job(&connection, &old_minimum, "running", 1)?;
-            seed_job(&connection, &old_maximum, "queued", 2)?;
-            seed_job(&connection, &current, "failed", 3)?;
-            let expected: String = connection.query_row(
-                "SELECT response_json FROM mine_cache WHERE request_key = ?1",
-                [if existing_current {
-                    &current
-                } else {
-                    &old_maximum
-                }],
-                |row| row.get(0),
-            )?;
-            init_cache(&mut connection)?;
-            let cache: (String, String, i64) = connection.query_row(
-                "SELECT request_key, response_json, created_at FROM mine_cache",
-                [],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-            )?;
-            assert_eq!(
-                cache,
-                (
-                    current.clone(),
-                    expected,
-                    if existing_current { 10 } else { 30 }
-                )
-            );
-            let job: (String, String, Option<String>, i64) = connection.query_row(
-                "SELECT request_json, status, error, created_at FROM mine_jobs",
-                [],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
-            )?;
-            assert_eq!(job, (current.clone(), "succeeded".to_owned(), None, 1));
-            for table in ["mine_cache", "mine_jobs"] {
-                let count: i64 =
-                    connection.query_row(&format!("SELECT count(*) FROM {table}"), [], |row| {
-                        row.get(0)
-                    })?;
-                assert_eq!(count, 1);
-            }
-            let before = cache_snapshot(&connection)?;
-            init_cache(&mut connection)?;
-            assert_eq!(cache_snapshot(&connection)?, before);
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn stored_terminal_jobs_keep_current_status_or_newest_old_status() -> Result<()> {
-        let (old_minimum, old_maximum, current) = unlimited_keys()?;
-        for existing_current in [false, true] {
-            let mut connection = Connection::open_in_memory()?;
-            init_cache(&mut connection)?;
-            seed_job(&connection, &old_minimum, "succeeded", 10)?;
-            seed_job(&connection, &old_maximum, "failed", 20)?;
-            if existing_current {
-                seed_job(&connection, &current, "succeeded", 5)?;
-            }
-            init_cache(&mut connection)?;
-            let job: (String, String, Option<String>, i64, i64) = connection.query_row(
-                "SELECT request_key, status, error, created_at, updated_at FROM mine_jobs",
-                [],
-                |row| {
-                    Ok((
-                        row.get(0)?,
-                        row.get(1)?,
-                        row.get(2)?,
-                        row.get(3)?,
-                        row.get(4)?,
-                    ))
-                },
-            )?;
-            let expected = if existing_current {
-                (current.clone(), "succeeded".to_owned(), None, 5, 5)
-            } else {
-                (
-                    current.clone(),
-                    "failed".to_owned(),
-                    Some("device failed".to_owned()),
-                    10,
-                    20,
-                )
-            };
-            assert_eq!(job, expected);
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn stored_limited_and_unknown_requests_remain_unchanged() -> Result<()> {
-        let (old_minimum, old_maximum, current) = unlimited_keys()?;
-        let mut connection = Connection::open_in_memory()?;
-        init_cache(&mut connection)?;
-        for key in [
-            old_minimum.replace("\"min_runtime_secs\":null", "\"min_runtime_secs\":30"),
-            old_maximum.replace("\"max_runtime_secs\":null", "\"max_runtime_secs\":30"),
-            current.replace("\"max_runtime_secs\":null", "\"max_runtime_secs\":0"),
-            current,
-            old_minimum.replace("\"min_runtime_secs\":null", "\"future_option\":null"),
-        ] {
-            seed_cache(&connection, &key, 10)?;
-            seed_job(&connection, &key, "failed", 20)?;
-        }
-        seed_job(&connection, "not JSON", "queued", 30)?;
-        let before = cache_snapshot(&connection)?;
-        init_cache(&mut connection)?;
-        assert_eq!(cache_snapshot(&connection)?, before);
-        Ok(())
-    }
-
-    #[test]
-    fn stored_key_migration_rolls_back_on_bad_payloads_and_write_errors() -> Result<()> {
-        let (old_minimum, _, _) = unlimited_keys()?;
-        for failure in ["mismatch", "invalid JSON", "write error"] {
-            let mut connection = Connection::open_in_memory()?;
-            init_cache(&mut connection)?;
-            seed_cache(&connection, &old_minimum, 10)?;
-            // The second group fails after the first group's cache has moved.
-            let other = old_minimum.replace("\"zeros\":6", "\"zeros\":7");
-            seed_job(&connection, &other, "queued", 20)?;
-            match failure {
-                "mismatch" => {
-                    connection.execute("UPDATE mine_jobs SET request_json = ?1", [&old_minimum])?;
-                }
-                "invalid JSON" => {
-                    connection.execute("UPDATE mine_jobs SET request_json = 'not JSON'", [])?;
-                }
-                _ => connection.execute_batch(
-                    "CREATE TRIGGER reject_migration BEFORE UPDATE ON mine_jobs
-                     BEGIN SELECT RAISE(ABORT, 'test write failure'); END;",
-                )?,
-            }
-            let before = cache_snapshot(&connection)?;
-            let error = init_cache(&mut connection).unwrap_err().to_string();
-            assert!(
-                error.contains(match failure {
-                    "mismatch" => "job payload does not match",
-                    "invalid JSON" => "invalid job payload",
-                    _ => "test write failure",
+    fn committed_jobs_and_results_survive_process_exit_without_database_drop() -> Result<()> {
+        const CHILD_PATH: &str = "SALTY_REDB_PERSISTENCE_TEST_PATH";
+        let request = normalize_request(request())?;
+        let key = serde_json::to_string(&request)?;
+        if let Some(path) = std::env::var_os(CHILD_PATH) {
+            let cache = open_cache(std::path::Path::new(&path))?;
+            enqueue_job(&cache, &key, &request)?;
+            assert_eq!(claim_next_job(&cache)?.unwrap().0, key);
+            let mut other = request.clone();
+            other.zeros = 7;
+            let complete = serde_json::to_string(&other)?;
+            enqueue_job(&cache, &complete, &other)?;
+            assert_eq!(claim_next_job(&cache)?.unwrap().0, complete);
+            complete_job(
+                &cache,
+                &complete,
+                &mining_response(crate::miner::MiningRun {
+                    outcome: None,
+                    runtime: std::time::Duration::from_millis(20_123),
                 }),
-                "{error}"
-            );
-            assert_eq!(cache_snapshot(&connection)?, before);
+            )?;
+            other.zeros = 8;
+            let failed = serde_json::to_string(&other)?;
+            enqueue_job(&cache, &failed, &other)?;
+            assert_eq!(claim_next_job(&cache)?.unwrap().0, failed);
+            mark_job_failed(&cache, &failed, "device failed".to_owned())?;
+            other.zeros = 9;
+            enqueue_job(&cache, &serde_json::to_string(&other)?, &other)?;
+            // Exit without running Database::drop: commits must already be durable.
+            std::process::exit(0);
         }
+        let path = std::env::temp_dir().join(format!(
+            "salty-persistence-{}-{}.redb",
+            std::process::id(),
+            SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
+        ));
+        let status = std::process::Command::new(std::env::current_exe()?)
+            .args([
+                "--exact",
+                "server::tests::committed_jobs_and_results_survive_process_exit_without_database_drop",
+                "--nocapture",
+            ])
+            .env(CHILD_PATH, &path)
+            .status()?;
+        assert!(status.success());
+        {
+            let cache = open_cache(&path)?;
+            assert_eq!(claim_next_job(&cache)?.unwrap().0, key);
+            let mut other = request;
+            other.zeros = 7;
+            let complete = serde_json::to_string(&other)?;
+            assert_eq!(stored_job(&cache, &complete)?.status, JobStatus::Succeeded);
+            assert_eq!(
+                get_cached_response(&cache, &complete)?.unwrap().runtime_ms,
+                20_123
+            );
+            enqueue_job(&cache, &complete, &other)?;
+            other.zeros = 8;
+            assert_eq!(
+                get_job_error(&cache, &serde_json::to_string(&other)?)?.as_deref(),
+                Some("device failed")
+            );
+            other.zeros = 9;
+            assert_eq!(
+                claim_next_job(&cache)?.unwrap().0,
+                serde_json::to_string(&other)?
+            );
+            assert!(claim_next_job(&cache)?.is_none());
+        }
+        std::fs::remove_file(path)?;
+        Ok(())
+    }
+
+    #[test]
+    fn completing_a_missing_job_does_not_save_an_orphan_result() -> Result<()> {
+        let state = state();
+        let key = serde_json::to_string(&normalize_request(request())?)?;
+        let response = mining_response(crate::miner::MiningRun {
+            outcome: None,
+            runtime: std::time::Duration::ZERO,
+        });
+        assert!(complete_job(&state.cache, &key, &response).is_err());
+        assert!(get_cached_response(&state.cache, &key)?.is_none());
+        assert!(claim_next_job(&state.cache)?.is_none());
         Ok(())
     }
 
@@ -1155,9 +936,9 @@ mod tests {
         input.max_runtime_secs = Some(1);
         let request = normalize_request(input)?;
         let key = serde_json::to_string(&request)?;
-        enqueue_job(&state, &key, &request)?;
+        enqueue_job(&state.cache, &key, &request)?;
         assert!(run_next_job(&state).await?);
-        let response = get_cached_response(&state, &key)?.unwrap();
+        let response = get_cached_response(&state.cache, &key)?.unwrap();
         assert!(response.found);
         assert!(response.score.unwrap() < 21);
         assert!(response.runtime_ms >= 1_000);
@@ -1172,7 +953,7 @@ mod tests {
             response.score,
             Some(address.iter().filter(|&&byte| byte == 0).count())
         );
-        assert!(claim_next_job(&state)?.is_none());
+        assert!(claim_next_job(&state.cache)?.is_none());
         Ok(())
     }
 
@@ -1184,10 +965,10 @@ mod tests {
         let request = normalize_request(serde_json::from_value(wire)?)?;
         let state = state();
         let key = serde_json::to_string(&request)?;
-        enqueue_job(&state, &key, &request)?;
-        claim_next_job(&state)?.unwrap();
-        requeue_running_jobs(&state.cache.lock().unwrap())?;
-        let (claimed_key, claimed) = claim_next_job(&state)?.unwrap();
+        enqueue_job(&state.cache, &key, &request)?;
+        claim_next_job(&state.cache)?.unwrap();
+        init_cache(&state.cache)?;
+        let (claimed_key, claimed) = claim_next_job(&state.cache)?.unwrap();
         assert_eq!(claimed_key, key);
         assert_eq!(claimed.min_runtime_secs, Some(30));
         assert_eq!(claimed.max_runtime_secs, Some(20));
@@ -1202,7 +983,7 @@ mod tests {
     }
 
     #[test]
-    fn cache_separates_both_limits_and_stores_actual_maximum() -> Result<()> {
+    fn cache_separates_both_limits() -> Result<()> {
         let state = state();
         let request = normalize_request(request())?;
         let key = serde_json::to_string(&request)?;
@@ -1210,9 +991,11 @@ mod tests {
             outcome: None,
             runtime: std::time::Duration::from_millis(20_123),
         });
-        insert_cached_response(&state, &key, &request, &response)?;
+        enqueue_job(&state.cache, &key, &request)?;
+        claim_next_job(&state.cache)?.unwrap();
+        complete_job(&state.cache, &key, &response)?;
         assert_eq!(
-            get_cached_response(&state, &key)?.unwrap().runtime_ms,
+            get_cached_response(&state.cache, &key)?.unwrap().runtime_ms,
             20_123
         );
         for (minimum, maximum) in [
@@ -1224,14 +1007,8 @@ mod tests {
             let mut other = request.clone();
             other.min_runtime_secs = minimum;
             other.max_runtime_secs = maximum;
-            assert!(get_cached_response(&state, &serde_json::to_string(&other)?)?.is_none());
+            assert!(get_cached_response(&state.cache, &serde_json::to_string(&other)?)?.is_none());
         }
-        let maximum: i64 = state.cache.lock().unwrap().query_row(
-            "SELECT max_runtime_secs FROM mine_cache WHERE request_key = ?1",
-            [&key],
-            |row| row.get(0),
-        )?;
-        assert_eq!(maximum, 20);
         Ok(())
     }
 

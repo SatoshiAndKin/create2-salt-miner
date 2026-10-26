@@ -121,7 +121,7 @@ struct ServeArgs {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     port: Option<u16>,
 
-    /// SQLite cache file path
+    /// redb database file for saved results and persistent jobs
     #[arg(long)]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     cache_path: Option<PathBuf>,
@@ -255,7 +255,7 @@ async fn main() -> Result<std::process::ExitCode> {
                 port: unwrapped.port.unwrap_or(3000),
                 cache_path: unwrapped
                     .cache_path
-                    .unwrap_or_else(|| PathBuf::from("salty-cache.sqlite")),
+                    .unwrap_or_else(|| PathBuf::from("salty-cache.redb")),
             })
             .await?;
         }

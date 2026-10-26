@@ -99,11 +99,16 @@ response keeps `found`, `salt`, `address`, `score`, `runtime_ms`, and `cache_hit
 `runtime_ms` reports measured mining time, also when no candidate exists. Cache
 keys include both limits. See `/api-docs/openapi.json` for the API schema.
 
-At startup, the server migrates stored requests without runtime limits to the
-current key format before it resumes jobs. It retains saved results and combines
-duplicate jobs. It keeps older requests with runtime limits unchanged because
-their mining behavior differed. The migration updates both tables in one
-transaction and rolls back if it fails.
+The server uses redb, an embedded database written in Rust, for saved results and
+persistent jobs. Its default file is `salty-cache.redb`. Set `cache_path` in
+`salty.toml` or pass `serve --cache-path PATH` to choose another file. The server
+commits queue changes to disk and saves each result with its completed job in one
+transaction. It resumes interrupted jobs at startup and keeps jobs after clients
+disconnect.
+
+SQLite databases from earlier versions are not supported or imported. Start with
+a new redb file. Existing SQLite files remain untouched when using the new
+default path.
 
 ## Performance Benchmarks
 
