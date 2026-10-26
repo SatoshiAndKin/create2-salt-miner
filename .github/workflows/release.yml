@@ -26,8 +26,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.98.0
         if: steps.release.outputs.pr
 
-      # Release Please updates the package version in Cargo.lock.
-      # Keep the reviewed dependency versions for the release.
+      - name: Update lockfile
+        if: steps.release.outputs.pr
+        run: cargo generate-lockfile
+
       - name: Validate lockfile
         if: steps.release.outputs.pr
         run: cargo metadata --locked --format-version 1 > /dev/null
@@ -53,6 +55,15 @@ jobs:
       - name: Run cargo-deny checks
         if: steps.release.outputs.pr
         run: cargo deny check
+
+      - name: Commit updated lockfile
+        if: steps.release.outputs.pr
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Cargo.lock
+          git diff --cached --quiet || git commit -m "chore: update Cargo.lock for release"
+          git push
 
   windows:
     needs: release-please
