@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.0.0](https://github.com/SatoshiAndKin/create2-salt-miner/compare/salty-v0.3.1...salty-v1.0.0) (2026-10-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* The mining server now uses salty-cache.redb. Existing SQLite databases and request-key layouts are not read or migrated.
+
+### Features
+
+* replace SQLite storage with redb ([6ac4338](https://github.com/SatoshiAndKin/create2-salt-miner/commit/6ac4338a5e2ca2a6c37871c3393b1a8d16a77338))
+
+
+### Bug Fixes
+
+* build Windows GNU releases without PGO ([bbede6f](https://github.com/SatoshiAndKin/create2-salt-miner/commit/bbede6f6d9f3a0034de7c5015000336d8dea0950))
+* update Swagger UI to remove vulnerable ZIP releases ([2e6c658](https://github.com/SatoshiAndKin/create2-salt-miner/commit/2e6c658b455c9d094afc4fe428036432a727564c))
+* update Tokio for the AsyncFd I/O safety advisory ([af3acf6](https://github.com/SatoshiAndKin/create2-salt-miner/commit/af3acf60210bda561168fd1daa1fbfbcdd09d385))
+
 ## [0.3.1](https://github.com/SatoshiAndKin/create2-salt-miner/compare/salty-v0.3.0...salty-v0.3.1) (2026-09-10)
 
 
