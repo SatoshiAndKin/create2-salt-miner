@@ -16,12 +16,12 @@
   indicatif = { version = "0.18.6", default-features = false, features = [ "unicode-width" ] }
   ocl = { version = "0.19.7", default-features = false, features = [ "opencl_version_1_1", "opencl_version_1_2" ] }
   rand = { version = "0.10.2", default-features = false, features = [ "thread_rng" ] }
-  rusqlite = { version = "0.40.2", default-features = false, features = [ "bundled" ] }
+  redb = { version = "4.4.0", default-features = false, features = [ "std" ] }
   serde = { version = "1.0.229", default-features = false, features = [ "derive", "std" ] }
   serde_json = { version = "1.0.151", default-features = false, features = [ "std" ] }
-  tokio = { version = "1.53.1", default-features = false, features = [ "macros", "net", "rt-multi-thread" ] }
-  utoipa = { version = "5.5.0", default-features = false, features = [ "macros" ] }
-  utoipa-swagger-ui = { version = "9.0.2", default-features = false, features = [ "axum", "vendored" ] }
+  tokio = { version = "1.53.3", default-features = false, features = [ "macros", "net", "rt-multi-thread" ] }
+  utoipa = { version = "6.0.0", default-features = false, features = [ "macros" ] }
+  utoipa-swagger-ui = { version = "10.0.2", default-features = false, features = [ "axum", "vendored" ] }
   url = { version = "2.5.8", default-features = false, features = [ "std" ] }
 
 [features]

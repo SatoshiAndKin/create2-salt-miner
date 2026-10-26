@@ -99,11 +99,16 @@ response keeps `found`, `salt`, `address`, `score`, `runtime_ms`, and `cache_hit
 `runtime_ms` reports measured mining time, also when no candidate exists. Cache
 keys include both limits. See `/api-docs/openapi.json` for the API schema.
 
-At startup, the server migrates stored requests without runtime limits to the
-current key format before it resumes jobs. It retains saved results and combines
-duplicate jobs. It keeps older requests with runtime limits unchanged because
-their mining behavior differed. The migration updates both tables in one
-transaction and rolls back if it fails.
+The server uses redb, an embedded database written in Rust, for saved results and
+persistent jobs. Its default file is `salty-cache.redb`. Set `cache_path` in
+`salty.toml` or pass `serve --cache-path PATH` to choose another file. The server
+commits queue changes to disk and saves each result with its completed job in one
+transaction. It resumes interrupted jobs at startup and keeps jobs after clients
+disconnect.
+
+SQLite databases from earlier versions are not supported or imported. Start with
+a new redb file. Existing SQLite files remain untouched when using the new
+default path.
 
 ## Performance Benchmarks
 
@@ -131,10 +136,8 @@ This project is heavily inspired by 0age's `create2crunch`. The code for the Ope
 
 ## Profile-guided releases
 
-Use Rust `1.98.0` and its `llvm-tools-preview` component. PGO is required for
-Linux and Windows release artifacts. Python 3.9+, `just`, and `cargo-pgo` are
-build tools; native Windows training needs PowerShell, `just`, and an installed
-OpenCL driver.
+Use Rust `1.98.0` and its `llvm-tools-preview` component. Linux release
+artifacts use PGO. Python 3.9+, `just`, and `cargo-pgo` are build tools.
 
 `just pgo-release` runs instrumentation, training, profile merging and validation,
 and optimization in order. It removes old raw profiles before training. Linux
@@ -143,37 +146,12 @@ profiles. `TRAIN_WORKSIZE` defaults to `71303168` (TOML `0x4400000`) for PGO and
 BOLT. Other training inputs use the `TRAIN_*` variables in `Justfile`. Keep
 `RUSTFLAGS` the same for every step; Linux release CI uses `-C target-cpu=x86-64`.
 
-Windows PGO is currently blocked. Stock Rust `1.98.0` does not include
-`profiler_builtins` for `x86_64-pc-windows-gnu`. `just windows-check` passes, but
-`just windows-pgo-instrument` fails with compiler error E0463. Rust enables the
-profiling runtime for its MSVC and GNU LLVM distributions; keeping the current
-GNU target requires a custom Rust build with profiling enabled. See the
-[Rust 1.98.0 build configuration](https://github.com/rust-lang/rust/blob/1.98.0/src/ci/github-actions/jobs.yml#L659-L738).
-The Windows target decision, native training, and a successful PGO release build
-remain open. No valid Windows profile or training bundle has been produced.
+Windows release artifacts use `x86_64-pc-windows-gnu` without PGO. Run
+`just windows-check` to check the target and `just windows` to build
+`target/x86_64-pc-windows-gnu/release/salty.exe`. Both commands use `cross` and
+`Dockerfile.cross`. Set `CARGO_TARGET_DIR` to select a different output directory.
+Windows builds do not require training data or a PGO profile. The pinned Rust
+GNU distribution does not include the profiling runtime.
 
-After resolving that compiler requirement, use this training sequence after the
-final source and lockfile changes:
-
-1. Run `just windows-pgo-instrument` on the cross-build host. It writes
-   `target/windows-pgo-bundle.zip` with the instrumented GNU executable, compiler
-   identity, source and lockfile hashes, compiler flags, and training inputs.
-   Packaging reads the executable from Cargo's configured target directory,
-   including `CARGO_TARGET_DIR` and `build.target-dir` settings.
-2. Copy the bundle to native Windows. From this checkout, run
-   `just windows-pgo-train <bundle.zip>`. You can also extract the bundle to an
-   empty directory and use its included `Justfile` with the original zip path.
-   The helper checks the executable, uses an empty working directory, lists
-   OpenCL devices, and mines with the recorded inputs. It writes
-   `<bundle.zip>.results.zip` with fresh raw profiles and training metadata.
-3. Copy the results back. Run `just windows-pgo-import <results.zip>`. The helper
-   rejects changed sources, lockfiles, compilers, flags, or training inputs. It
-   merges with Rust's matching LLVM tool and rejects empty or invalid profiles.
-4. Run `just windows`. It checks metadata and the profile checksum, then mounts
-   `.pgo` at `/salty-pgo` inside the cross container for the optimized build.
-5. Commit `.pgo/salty-windows-x86_64.profdata` and its `.json` metadata together.
-   Retrain after source, lockfile, or build-input changes, including release
-   version changes. A missing or stale profile blocks the Windows release.
-
-A cross-build does not validate an OpenCL driver or Windows performance. Run the
-bundle on the Windows machine that will mine.
+A cross-build does not validate an OpenCL driver or Windows performance. Run
+`salty.exe list` and a mining command on the Windows machine that will mine.

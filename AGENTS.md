@@ -16,7 +16,7 @@
 
 ## Cross-compilation and release notes
 - Windows target is `x86_64-pc-windows-gnu` via `cross` and `Dockerfile.cross` (`Cross.toml` image override).
-- Build Windows artifact with: `just windows`.
+- Build the Windows GNU release without PGO with: `just windows`.
 - Release automation lives in `.github/workflows/release.yml`.
 
 ## Repo conventions

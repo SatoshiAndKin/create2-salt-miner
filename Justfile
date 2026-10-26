@@ -29,8 +29,7 @@ validate: fmt clippy test eta
 windows: _windows-setup
     #!/usr/bin/env bash
     set -euo pipefail
-    python3 scripts/pgo.py verify
-    CROSS_CONTAINER_OPTS="--platform linux/amd64 -v ${PWD}/.pgo:/salty-pgo:ro" RUSTFLAGS="{{WINDOWS_RUSTFLAGS}} -Cprofile-use=/salty-pgo/salty-windows-x86_64.profdata -Cllvm-args=-pgo-warn-missing-function" cross build --release --locked --target {{windows-target}}
+    CROSS_CONTAINER_OPTS="--platform linux/amd64" RUSTFLAGS="{{WINDOWS_RUSTFLAGS}}" cross build --release --locked --target {{windows-target}}
 
 windows-check: _windows-setup
     #!/usr/bin/env bash
@@ -173,19 +172,7 @@ pgo-merge:
     raw_profiles=("${profiles_dir}"/*.profraw)
     (( ${#raw_profiles[@]} > 0 )) || { echo "No fresh PGO profiles found" >&2; exit 1; }
     "${llvm_profdata}" merge -o "${profiles_dir}/checked.profdata" "${raw_profiles[@]}"
-    python3 scripts/pgo.py check "${profiles_dir}/checked.profdata"
-
-windows-pgo-instrument: _windows-setup
-    #!/usr/bin/env bash
-    set -euo pipefail
-    CROSS_CONTAINER_OPTS="--platform linux/amd64" RUSTFLAGS="{{WINDOWS_RUSTFLAGS}} -Cprofile-generate" cross build --release --locked --target {{windows-target}}
-    python3 scripts/pgo.py bundle target/windows-pgo-bundle.zip
-
-windows-pgo-train bundle:
-    powershell.exe -NoProfile -File scripts/windows-pgo-train.ps1 {{quote(bundle)}}
-
-windows-pgo-import results:
-    python3 scripts/pgo.py import {{quote(results)}}
+    python3 scripts/pgo.py "${profiles_dir}/checked.profdata"
 
 _windows-setup:
     #!/usr/bin/env bash
