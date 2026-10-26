@@ -19,7 +19,7 @@
   redb = { version = "4.4.0", default-features = false, features = [ "std" ] }
   serde = { version = "1.0.229", default-features = false, features = [ "derive", "std" ] }
   serde_json = { version = "1.0.151", default-features = false, features = [ "std" ] }
-  tokio = { version = "1.53.1", default-features = false, features = [ "macros", "net", "rt-multi-thread" ] }
+  tokio = { version = "1.53.3", default-features = false, features = [ "macros", "net", "rt-multi-thread" ] }
   utoipa = { version = "5.5.0", default-features = false, features = [ "macros" ] }
   utoipa-swagger-ui = { version = "9.0.2", default-features = false, features = [ "axum", "vendored" ] }
   url = { version = "2.5.8", default-features = false, features = [ "std" ] }
