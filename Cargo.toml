@@ -4,22 +4,22 @@
   license = "MIT OR Apache-2.0"
   name = "salty"
   rust-version = "1.90"
-  version = "0.3.1"
+  version = "1.0.0"
 
 [dependencies]
-  alloy-primitives = { version = "1.6.1", default-features = false, features = [ "rand", "std" ] }
+  alloy-primitives = { version = "1.7.3", default-features = false, features = [ "rand", "std" ] }
   axum = { version = "0.8.9", default-features = false, features = [ "http1", "json", "tokio" ] }
-  clap = { version = "4.6.6", default-features = false, features = [ "derive", "error-context", "help", "std", "usage" ] }
-  console = { version = "0.16.4", default-features = false, features = [ "std" ] }
-  eyre = "0.6.12"
+  clap = { version = "4.6.7", default-features = false, features = [ "derive", "error-context", "help", "std", "usage" ] }
+  console = { version = "0.16.6", default-features = false, features = [ "std" ] }
+  eyre = "0.6.14"
   figment = { version = "0.10.19", default-features = false, features = [ "toml" ] }
   indicatif = { version = "0.18.6", default-features = false, features = [ "unicode-width" ] }
   ocl = { version = "0.19.7", default-features = false, features = [ "opencl_version_1_1", "opencl_version_1_2" ] }
-  rand = { version = "0.10.2", default-features = false, features = [ "thread_rng" ] }
+  rand = { version = "0.10.3", default-features = false, features = [ "thread_rng" ] }
   redb = { version = "4.4.0", default-features = false, features = [ "std" ] }
   serde = { version = "1.0.229", default-features = false, features = [ "derive", "std" ] }
-  serde_json = { version = "1.0.151", default-features = false, features = [ "std" ] }
-  tokio = { version = "1.53.3", default-features = false, features = [ "macros", "net", "rt-multi-thread" ] }
+  serde_json = { version = "1.0.154", default-features = false, features = [ "std" ] }
+  tokio = { version = "1.54.1", default-features = false, features = [ "macros", "net", "rt-multi-thread" ] }
   utoipa = { version = "6.0.0", default-features = false, features = [ "macros" ] }
   utoipa-swagger-ui = { version = "10.0.2", default-features = false, features = [ "axum", "vendored" ] }
   url = { version = "2.5.8", default-features = false, features = [ "std" ] }
