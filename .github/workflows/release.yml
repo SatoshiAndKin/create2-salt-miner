@@ -75,15 +75,13 @@ jobs:
           ref: ${{ needs.release-please.outputs.tag_name }}
 
       - uses: dtolnay/rust-toolchain@1.98.0
-        with:
-          components: llvm-tools-preview
 
       - name: Install cross and just
         uses: taiki-e/install-action@v2
         with:
           tool: cross,just
 
-      - name: Verify profile and build Windows release
+      - name: Build the Windows GNU release
         run: just windows
 
       - name: Upload Windows artifact
