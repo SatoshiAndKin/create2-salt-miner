@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/SatoshiAndKin/create2-salt-miner/compare/salty-v1.0.0...salty-v1.0.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **ci:** provision the Windows cross target ([#14](https://github.com/SatoshiAndKin/create2-salt-miner/issues/14)) ([e987ce4](https://github.com/SatoshiAndKin/create2-salt-miner/commit/e987ce4abd73801a22bab6f59f2b62c381cf447f))
+
 ## [1.0.0](https://github.com/SatoshiAndKin/create2-salt-miner/compare/salty-v0.3.1...salty-v1.0.0) (2026-10-26)
 
 
