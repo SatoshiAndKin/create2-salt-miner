@@ -70,23 +70,36 @@ jobs:
     runs-on:
       group: ski-ci-public-linux
       labels: ski-kvm-public-build
-    env:
-      # Docker runs in a sibling guest container with a separate filesystem.
-      CROSS_REMOTE: "true"
-      CROSS_CONTAINER_OPTS: ""
-      CROSS_DEBUG: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Place Rust toolchain data in the shared workspace volume
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/windows-toolchain"
+          mkdir -p "$root"/{cargo,rustup,home}
+          printf 'CARGO_HOME=%s/cargo\nRUSTUP_HOME=%s/rustup\n' "$root" "$root" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@1.98.0
         with:
           targets: x86_64-pc-windows-gnu
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: just,cross
-      - name: Check the Windows target
-        run: just windows-check
-      - name: Build the Windows GNU release
-        run: just windows
+      - name: Check and build the Windows GNU target
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/windows-toolchain"
+          cargo=$(rustup which --toolchain 1.98.0 cargo)
+          test "${cargo#"$RUSTUP_HOME/toolchains/"}" != "$cargo"
+          docker build --platform linux/amd64 --file Dockerfile.cross --tag salty-windows-cross .
+          run=(docker run --rm --user "$(id -u):$(id -g)"
+            --mount "type=bind,src=$GITHUB_WORKSPACE,dst=$GITHUB_WORKSPACE"
+            --mount "type=bind,src=$root,dst=$root"
+            --workdir "$GITHUB_WORKSPACE"
+            --env "HOME=$root/home" --env CARGO_HOME --env RUSTUP_HOME
+            --env "RUSTC=${cargo%/cargo}/rustc" --env "RUSTFLAGS=-C target-cpu=x86-64"
+            --entrypoint "$cargo" salty-windows-cross)
+          "${run[@]}" check --locked --target x86_64-pc-windows-gnu
+          "${run[@]}" build --release --locked --target x86_64-pc-windows-gnu
+          test -s target/x86_64-pc-windows-gnu/release/salty.exe
       - uses: actions/upload-artifact@v4
         with:
           name: windows-gnu
