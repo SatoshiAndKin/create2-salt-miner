@@ -13,4 +13,4 @@ permissions:
 
 jobs:
   validation:
-    uses: SatoshiAndKin/create2-salt-miner/.github/workflows/validate-reviewed-linux.yml@cc1bcee25fbc052883b44814524b4447d91670a9
+    uses: SatoshiAndKin/create2-salt-miner/.github/workflows/validate-reviewed-linux.yml@4825df88f14b9e82fc33e57261aae9eec524d9f3
