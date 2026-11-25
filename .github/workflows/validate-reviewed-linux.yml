@@ -51,7 +51,7 @@ jobs:
           cargo fmt --all -- --check
           cargo check --locked
           cargo clippy --locked --all-targets -- -D warnings
-          cargo nextest run --locked --run-ignored all --test-threads 1
+          cargo nextest run --locked --run-ignored all
           cargo deny check
           python3 -m unittest discover -s scripts -p 'test_*.py'
       - name: Build with a fresh Linux PGO profile
