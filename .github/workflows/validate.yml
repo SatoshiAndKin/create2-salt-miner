@@ -12,53 +12,5 @@ permissions:
   contents: read
 
 jobs:
-  linux:
-    runs-on: ubuntu-latest
-    env:
-      RUSTFLAGS: "-C target-cpu=x86-64"
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.98.0
-        with:
-          components: clippy,rustfmt,llvm-tools-preview
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: just,cargo-pgo,cargo-nextest,cargo-deny
-      - name: Install OpenCL runtime
-        run: sudo apt-get update && sudo apt-get install -y ocl-icd-opencl-dev pocl-opencl-icd
-      - name: Validate Rust and native OpenCL mining
-        run: |
-          cargo fmt --all -- --check
-          cargo check --locked
-          cargo clippy --locked --all-targets -- -D warnings
-          cargo nextest run --locked --run-ignored all --test-threads 1
-          cargo deny check
-          python3 -m unittest discover -s scripts -p 'test_*.py'
-      - name: Build with a fresh Linux PGO profile
-        run: just pgo-release
-      - uses: actions/upload-artifact@v4
-        with:
-          name: linux-pgo
-          path: |
-            target/x86_64-unknown-linux-gnu/release/salty
-            target/pgo-profiles/*.profdata
-
-  windows-cross:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.98.0
-        with:
-          targets: x86_64-pc-windows-gnu
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: just,cross
-      - name: Check the Windows target
-        run: just windows-check
-      - name: Build the Windows GNU release
-        run: just windows
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows-gnu
-          path: target/x86_64-pc-windows-gnu/release/salty.exe
-          if-no-files-found: error
+  validation:
+    uses: SatoshiAndKin/create2-salt-miner/.github/workflows/validate-reviewed-linux.yml@17eba0c144324ea5116e7c343142e9b08f6976a1
