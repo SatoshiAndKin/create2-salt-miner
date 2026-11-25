@@ -29,12 +29,12 @@ validate: fmt clippy test eta
 windows: _windows-setup
     #!/usr/bin/env bash
     set -euo pipefail
-    CROSS_CONTAINER_OPTS="--platform linux/amd64" RUSTFLAGS="{{WINDOWS_RUSTFLAGS}}" cross build --release --locked --target {{windows-target}}
+    CROSS_CONTAINER_OPTS="${CROSS_CONTAINER_OPTS-"--platform linux/amd64"}" RUSTFLAGS="{{WINDOWS_RUSTFLAGS}}" cross build --release --locked --target {{windows-target}}
 
 windows-check: _windows-setup
     #!/usr/bin/env bash
     set -euo pipefail
-    CROSS_CONTAINER_OPTS="--platform linux/amd64" RUSTFLAGS="{{WINDOWS_RUSTFLAGS}}" cross check --locked --target {{windows-target}}
+    CROSS_CONTAINER_OPTS="${CROSS_CONTAINER_OPTS-"--platform linux/amd64"}" RUSTFLAGS="{{WINDOWS_RUSTFLAGS}}" cross check --locked --target {{windows-target}}
 
 pgo-info:
     #!/usr/bin/env bash
