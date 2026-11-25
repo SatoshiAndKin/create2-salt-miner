@@ -1,0 +1,74 @@
+name: Reviewed Linux validation
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    if: github.repository == 'SatoshiAndKin/create2-salt-miner'
+    runs-on:
+      group: ski-ci-public-linux
+      labels: ski-kvm-public-build
+    container:
+      image: docker.io/library/ubuntu:24.04@sha256:9a04f13b3f80ef056361e30868593b1cfd2279fe19e4081cb93a90bf56819d6a
+    defaults:
+      run:
+        shell: bash
+    env:
+      RUSTFLAGS: "-C target-cpu=x86-64"
+    steps:
+      - name: Install the build and CPU OpenCL dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential ca-certificates curl git ocl-icd-opencl-dev \
+            pkg-config pocl-opencl-icd python3 xz-utils zstd
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98.0
+        with:
+          components: clippy,rustfmt,llvm-tools-preview
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: just,cargo-pgo,cargo-nextest,cargo-deny
+      - name: Validate Rust and native OpenCL mining
+        run: |
+          cargo fmt --all -- --check
+          cargo check --locked
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo nextest run --locked --run-ignored all --test-threads 1
+          cargo deny check
+          python3 -m unittest discover -s scripts -p 'test_*.py'
+      - name: Build with a fresh Linux PGO profile
+        run: just pgo-release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-pgo
+          path: |
+            target/x86_64-unknown-linux-gnu/release/salty
+            target/pgo-profiles/*.profdata
+
+  windows-cross:
+    if: github.repository == 'SatoshiAndKin/create2-salt-miner'
+    runs-on:
+      group: ski-ci-public-linux
+      labels: ski-kvm-public-build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98.0
+        with:
+          targets: x86_64-pc-windows-gnu
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: just,cross
+      - name: Check the Windows target
+        run: just windows-check
+      - name: Build the Windows GNU release
+        run: just windows
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-gnu
+          path: target/x86_64-pc-windows-gnu/release/salty.exe
+          if-no-files-found: error
