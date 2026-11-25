@@ -18,6 +18,9 @@ jobs:
       run:
         shell: bash
     env:
+      HOME: /root
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
       RUSTFLAGS: "-C target-cpu=x86-64"
     steps:
       - name: Install the build and CPU OpenCL dependencies
@@ -55,6 +58,10 @@ jobs:
     runs-on:
       group: ski-ci-public-linux
       labels: ski-kvm-public-build
+    env:
+      # Docker runs in a sibling guest container with a separate filesystem.
+      CROSS_REMOTE: "true"
+      CROSS_DEBUG: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.98.0
