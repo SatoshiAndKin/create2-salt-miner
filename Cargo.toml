@@ -4,7 +4,7 @@
   license = "MIT OR Apache-2.0"
   name = "salty"
   rust-version = "1.90"
-  version = "1.0.0"
+  version = "1.0.1"
 
 [dependencies]
   alloy-primitives = { version = "1.7.3", default-features = false, features = [ "rand", "std" ] }
